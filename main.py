@@ -442,20 +442,22 @@ class AIHousePlanGenerator:
                     return False
             return True
         
-        def calculate_average_wall_length():
-            """Calculate the average length of walls in the layout"""
-            total_wall_length = 0
-            wall_count = 0
+        def calculate_mean_wall_length():
+            """Calculate the mean length of walls in the layout"""
+            wall_lengths = []
             
+            # Collect all wall lengths
             for rect in placed_rectangles:
-                # Add horizontal walls
-                total_wall_length += rect['width']
-                wall_count += 1
-                # Add vertical walls
-                total_wall_length += rect['height']
-                wall_count += 1
+                wall_lengths.append(rect['width'])
+                wall_lengths.append(rect['height'])
             
-            return total_wall_length / wall_count if wall_count > 0 else 10.0
+            # Calculate mean
+            if not wall_lengths:
+                return 10.0  # Default if no walls
+            
+            mean_length = sum(wall_lengths) / len(wall_lengths)
+            print(f"DEBUG: Mean wall length: {mean_length:.2f}")
+            return mean_length
         
         def find_best_position(room):
             """Find the best position for a room that maximizes space usage"""
@@ -501,23 +503,23 @@ class AIHousePlanGenerator:
             
             return best_position, best_adjacent_room, best_is_horizontal
         
+        # Calculate mean wall length once for all doors
+        mean_wall_length = calculate_mean_wall_length()
+        door_size = mean_wall_length * 0.12  # Door size is 12% of mean wall length
+        print(f"DEBUG: Door size: {door_size:.2f}")
+        
         def add_door_between_rooms(room1, room2, is_horizontal):
-            """Add a door between two adjacent rooms"""
-            # Calculate door width based on average wall length
-            avg_wall_length = calculate_average_wall_length()
-            door_width = avg_wall_length * 0.2  # Door width is 20% of average wall length
-            door_height = door_width * 2.33  # Standard door height ratio
-            
+            """Add a door between two adjacent rooms using consistent dimensions"""
             if is_horizontal:
                 # Horizontal wall (top/bottom)
                 x = max(room1.x, room2.x) + (min(room1.x + room1.width, room2.x + room2.width) - max(room1.x, room2.x)) / 2
                 y = room1.y if room1.y < room2.y else room2.y + room2.height
-                door = Door(x=x, y=y, width=door_width, height=door_height, is_horizontal=True)
+                door = Door(x=x, y=y, width=door_size, height=door_size * 2.33, is_horizontal=True)
             else:
                 # Vertical wall (left/right)
                 x = room1.x if room1.x < room2.x else room2.x + room2.width
                 y = max(room1.y, room2.y) + (min(room1.y + room1.height, room2.y + room2.height) - max(room1.y, room2.y)) / 2
-                door = Door(x=x, y=y, width=door_width, height=door_height, is_horizontal=False)
+                door = Door(x=x, y=y, width=door_size * 2.33, height=door_size, is_horizontal=False)
             
             room1.doors.append(door)
             room2.doors.append(door)
@@ -615,6 +617,7 @@ class AIHousePlanGenerator:
             .room-fill { fill: #f0f0f0; stroke: #333; stroke-width: 1; }
             .door { fill: none; stroke: #8B4513; stroke-width: 2; }
             .door-arc { fill: none; stroke: #8B4513; stroke-width: 2; }
+            .door-opening { fill: none; stroke: #999; stroke-width: 1; stroke-dasharray: 2,2; }
             .window { fill: #87CEEB; stroke: #333; stroke-width: 1; }
             .room-label { font-family: Arial; font-size: 12px; text-anchor: middle; fill: #333; }
             .specs { font-family: Arial; font-size: 10px; fill: #666; }
@@ -667,15 +670,31 @@ class AIHousePlanGenerator:
                 door_height = door.height * scale
                 
                 if door.is_horizontal:
-                    # Draw horizontal door (arc)
+                    # Draw horizontal door opening (dashed line)
+                    ET.SubElement(svg, 'line', {
+                        'x1': str(door_x - door_width/2),
+                        'y1': str(door_y),
+                        'x2': str(door_x + door_width/2),
+                        'y2': str(door_y),
+                        'class': 'door-opening'
+                    })
+                    # Draw quarter circle door arc
                     ET.SubElement(svg, 'path', {
-                        'd': f'M {door_x - door_width/2} {door_y} A {door_width/2} {door_width/2} 0 0 1 {door_x + door_width/2} {door_y}',
+                        'd': f'M {door_x - door_width/2} {door_y} A {door_width/2} {door_width/2} 0 0 1 {door_x} {door_y - door_width/2}',
                         'class': 'door-arc'
                     })
                 else:
-                    # Draw vertical door (arc)
+                    # Draw vertical door opening (dashed line)
+                    ET.SubElement(svg, 'line', {
+                        'x1': str(door_x),
+                        'y1': str(door_y - door_height/2),
+                        'x2': str(door_x),
+                        'y2': str(door_y + door_height/2),
+                        'class': 'door-opening'
+                    })
+                    # Draw quarter circle door arc
                     ET.SubElement(svg, 'path', {
-                        'd': f'M {door_x} {door_y - door_height/2} A {door_height/2} {door_height/2} 0 0 1 {door_x} {door_y + door_height/2}',
+                        'd': f'M {door_x} {door_y - door_height/2} A {door_height/2} {door_height/2} 0 0 1 {door_x + door_height/2} {door_y}',
                         'class': 'door-arc'
                     })
             
@@ -807,11 +826,11 @@ if __name__ == "__main__":
     print("Generating house plan...")
     save_dynamic_house_plan(
         filename="foo_house.svg",
-        terrain_width=150,  # 100 feet wide
-        terrain_height=200,  # 100 feet deep
-        building_percentage=80,  # 90% of terrain will be built
-        num_bedrooms=2,
-        num_bathrooms=1,
+        terrain_width=490,  # 100 feet wide
+        terrain_height=430,  # 100 feet deep
+        building_percentage=85,  # 90% of terrain will be built
+        num_bedrooms=4,
+        num_bathrooms=3,
         has_dining_room=True,
         has_garage=False,
         style="traditional"
