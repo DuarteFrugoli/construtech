@@ -599,6 +599,30 @@ class AIHousePlanGenerator:
     
     def generate_svg_from_rooms(self, rooms: List[Room], specs: HouseSpecs) -> ET.Element:
         """Generate SVG from positioned rooms"""
+        # Translation dictionary
+        translations = {
+            "Living Room": "Sala de Estar",
+            "Master Bedroom": "Quarto Principal",
+            "Bedroom": "Quarto",
+            "Bedroom 2": "Quarto 2",
+            "Bedroom 3": "Quarto 3",
+            "Bathroom": "Banheiro",
+            "Master Bathroom": "Banheiro Principal",
+            "Bathroom 2": "Banheiro 2",
+            "Kitchen": "Cozinha",
+            "Dining Room": "Sala de Jantar",
+            "Garage": "Garagem",
+            "Built Area": "Área Construída",
+            "Total Area": "Área Total",
+            "Bedrooms": "Quartos",
+            "Bathrooms": "Banheiros",
+            "Style": "Estilo",
+            "Traditional": "Tradicional",
+            "Modern": "Moderno",
+            "Compact": "Compacto",
+            "AI-Generated House Plan": "Planta de Casa Gerada por IA"
+        }
+
         # Calculate bounds
         max_x = max(room.x + room.width for room in rooms) if rooms else 100
         max_y = max(room.y + room.height for room in rooms) if rooms else 100
@@ -792,7 +816,7 @@ class AIHousePlanGenerator:
                 'x': str(label_x),
                 'y': str(label_y),
                 'class': 'room-label'
-            }).text = room.name
+            }).text = translations.get(room.name, room.name)
             
             # Room dimensions (small text)
             dim_text = f"{room.width:.0f}' × {room.height:.0f}'"
@@ -805,11 +829,11 @@ class AIHousePlanGenerator:
         # Add house specifications
         specs_y = 20
         specs_text = [
-            f"Built Area: {specs.built_area:.0f} sq ft",
-            f"Total Area: {specs.total_area:.0f} sq ft",
-            f"Bedrooms: {specs.num_bedrooms}",
-            f"Bathrooms: {specs.num_bathrooms}",
-            f"Style: {specs.style.title()}"
+            f"{translations['Built Area']}: {specs.built_area:.0f} sq ft",
+            f"{translations['Total Area']}: {specs.total_area:.0f} sq ft",
+            f"{translations['Bedrooms']}: {specs.num_bedrooms}",
+            f"{translations['Bathrooms']}: {specs.num_bathrooms}",
+            f"{translations['Style']}: {translations.get(specs.style.title(), specs.style.title())}"
         ]
         
         for i, text in enumerate(specs_text):
@@ -825,16 +849,17 @@ class AIHousePlanGenerator:
             'y': '25',
             'style': 'font-family: Arial; font-size: 16px; font-weight: bold; text-anchor: middle; fill: #333;'
         })
-        title.text = f"AI-Generated House Plan"
+        title.text = translations['AI-Generated House Plan']
         
         # Print area statistics
-        print("\nArea Statistics:")
-        print(f"Total Terrain Area: {specs.total_area:.0f} sq ft")
-        print(f"Total Constructed Area: {total_constructed_area:.0f} sq ft")
-        print(f"Percentage of Terrain Used: {(total_constructed_area/specs.total_area)*100:.1f}%")
-        print("\nRoom Areas:")
+        print("\nEstatísticas de Área:")
+        print(f"Área Total do Terreno: {specs.total_area:.0f} sq ft")
+        print(f"Área Total Construída: {total_constructed_area:.0f} sq ft")
+        print(f"Porcentagem do Terreno Utilizada: {(total_constructed_area/specs.total_area)*100:.1f}%")
+        print("\nÁreas dos Cômodos:")
         for room_name, area in room_areas:
-            print(f"{room_name}: {area:.0f} sq ft ({(area/total_constructed_area)*100:.1f}% of constructed area)")
+            translated_name = translations.get(room_name, room_name)
+            print(f"{translated_name}: {area:.0f} sq ft ({(area/total_constructed_area)*100:.1f}% da área construída)")
         
         return svg
 
