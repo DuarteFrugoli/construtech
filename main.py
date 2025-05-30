@@ -8,6 +8,19 @@ import google.generativeai as genai
 import os
 
 @dataclass
+class Door:
+    x: float
+    y: float
+    width: float = 3.0  # Fixed door width in feet
+    height: float = 7.0  # Fixed door height in feet
+    is_horizontal: bool = False  # Whether the door is on a horizontal wall
+
+    @classmethod
+    def get_dimensions(cls) -> Tuple[float, float]:
+        """Get fixed door dimensions"""
+        return 3.0, 7.0  # Fixed width and height
+
+@dataclass
 class Room:
     name: str
     width: float
@@ -16,7 +29,7 @@ class Room:
     y: float
     required: bool = True
     min_area: float = 0
-    doors: List[Dict] = None
+    doors: List[Door] = None
     windows: List[Dict] = None
     
     def __post_init__(self):
@@ -112,16 +125,41 @@ class AIHousePlanGenerator:
             1. NO ROOM OVERLAPPING - This is an absolute requirement. Rooms must be placed adjacent to each other without any overlap.
             2. Rooms must fit within the terrain dimensions ({specs.terrain_width}ft × {specs.terrain_height}ft)
             3. Total area should be between {specs.built_area * 0.85:.0f} and {specs.built_area * 1.05:.0f} sq ft (85% to 105% of target)
-            4. Rooms can have ANY shape and size that makes sense for their function - they don't need to be rectangular
-            5. Rooms should be placed in a way that maximizes space usage while maintaining functionality
+            
+            ROOM REQUIREMENTS:
+            - ONLY include the following room types:
+              * Bedrooms (exactly {specs.num_bedrooms})
+              * Bathrooms (exactly {specs.num_bathrooms})
+              * Living Room (if specified)
+              * Kitchen (if specified)
+              * Dining Room (if specified)
+              * Garage (if specified)
+            - DO NOT add any extra rooms like storage rooms, hallways, or closets
+            - Each room type should be included exactly as specified
+            
+            REALISTIC ROOM SIZE GUIDELINES:
+            - Minimum room width: 8 feet (standard door width)
+            - Maximum aspect ratio: 2:1 (length:width)
+            - Room size ranges:
+              * Bedrooms: 120-250 sq ft (e.g., 12x10 to 15x16)
+              * Bathrooms: 40-100 sq ft (e.g., 5x8 to 10x10)
+              * Living Room: 200-400 sq ft (e.g., 15x15 to 20x20)
+              * Kitchen: 100-200 sq ft (e.g., 10x10 to 15x15)
+              * Dining Room: 120-250 sq ft (e.g., 12x10 to 15x16)
+            
+            ROOM RELATIONSHIPS:
+            - Bedrooms should be near bathrooms
+            - Kitchen should be near dining area
+            - Living room should be central
+            - Master bedroom should be more private
             
             Additional guidelines:
-            - You can create any type of room that makes sense for the house
             - Consider typical room size standards and functionality
             - Ensure the layout is practical and aesthetically pleasing
             - Rooms should be placed directly adjacent to each other (no spacing)
             - Feel free to create rooms with non-rectangular shapes if it makes sense for the layout
             - Try to create interesting room shapes that fit together like puzzle pieces
+            - IMPORTANT: All rooms must be usable and practical - avoid creating rooms that are too narrow or oddly shaped
             
             Return ONLY a JSON object with this exact structure (no markdown formatting, no code blocks):
             {{
@@ -140,8 +178,8 @@ class AIHousePlanGenerator:
             
             # Configure generation parameters
             generation_config = {
-                "temperature": 1.0,  # Maximum temperature for maximum creativity
-                "top_p": 1.0,  # Maximum top_p for maximum diversity
+                "temperature": 0.8,  # Slightly reduced for more realistic outputs
+                "top_p": 0.9,
                 "top_k": 40,
                 "max_output_tokens": 1000,
             }
@@ -384,7 +422,8 @@ class AIHousePlanGenerator:
                 'x': rooms[0].x,
                 'y': rooms[0].y,
                 'width': rooms[0].width,
-                'height': rooms[0].height
+                'height': rooms[0].height,
+                'room': rooms[0]
             })
         
         def is_valid_placement(x, y, width, height):
@@ -403,27 +442,43 @@ class AIHousePlanGenerator:
                     return False
             return True
         
+        def calculate_average_wall_length():
+            """Calculate the average length of walls in the layout"""
+            total_wall_length = 0
+            wall_count = 0
+            
+            for rect in placed_rectangles:
+                # Add horizontal walls
+                total_wall_length += rect['width']
+                wall_count += 1
+                # Add vertical walls
+                total_wall_length += rect['height']
+                wall_count += 1
+            
+            return total_wall_length / wall_count if wall_count > 0 else 10.0
+        
         def find_best_position(room):
             """Find the best position for a room that maximizes space usage"""
             width = room.width
             height = room.height
             best_position = None
             best_score = float('-inf')
+            best_adjacent_room = None
+            best_is_horizontal = False
             
             # Try different positions around existing rooms
             for rect in placed_rectangles:
                 # Try positions around the rectangle
                 positions = [
-                    (rect['x'] + rect['width'], rect['y']),  # Right
-                    (rect['x'] - width, rect['y']),  # Left
-                    (rect['x'], rect['y'] + rect['height']),  # Below
-                    (rect['x'], rect['y'] - height),  # Above
+                    (rect['x'] + rect['width'], rect['y'], False),  # Right
+                    (rect['x'] - width, rect['y'], False),  # Left
+                    (rect['x'], rect['y'] + rect['height'], True),  # Below
+                    (rect['x'], rect['y'] - height, True),  # Above
                 ]
                 
-                for x, y in positions:
+                for x, y, is_horizontal in positions:
                     if is_valid_placement(x, y, width, height):
                         # Calculate a score based on how well the room fits
-                        # Prefer positions that create a more compact layout
                         score = 0
                         
                         # Prefer positions that are adjacent to multiple rooms
@@ -441,13 +496,36 @@ class AIHousePlanGenerator:
                         if score > best_score:
                             best_score = score
                             best_position = (x, y)
+                            best_adjacent_room = rect['room']
+                            best_is_horizontal = is_horizontal
             
-            return best_position
+            return best_position, best_adjacent_room, best_is_horizontal
+        
+        def add_door_between_rooms(room1, room2, is_horizontal):
+            """Add a door between two adjacent rooms"""
+            # Calculate door width based on average wall length
+            avg_wall_length = calculate_average_wall_length()
+            door_width = avg_wall_length * 0.2  # Door width is 20% of average wall length
+            door_height = door_width * 2.33  # Standard door height ratio
+            
+            if is_horizontal:
+                # Horizontal wall (top/bottom)
+                x = max(room1.x, room2.x) + (min(room1.x + room1.width, room2.x + room2.width) - max(room1.x, room2.x)) / 2
+                y = room1.y if room1.y < room2.y else room2.y + room2.height
+                door = Door(x=x, y=y, width=door_width, height=door_height, is_horizontal=True)
+            else:
+                # Vertical wall (left/right)
+                x = room1.x if room1.x < room2.x else room2.x + room2.width
+                y = max(room1.y, room2.y) + (min(room1.y + room1.height, room2.y + room2.height) - max(room1.y, room2.y)) / 2
+                door = Door(x=x, y=y, width=door_width, height=door_height, is_horizontal=False)
+            
+            room1.doors.append(door)
+            room2.doors.append(door)
         
         # Place remaining rooms
         for i in range(1, len(rooms)):
             room = rooms[i]
-            position = find_best_position(room)
+            position, adjacent_room, is_horizontal = find_best_position(room)
             
             if position:
                 x, y = position
@@ -457,12 +535,17 @@ class AIHousePlanGenerator:
                     'x': x,
                     'y': y,
                     'width': room.width,
-                    'height': room.height
+                    'height': room.height,
+                    'room': room
                 })
+                
+                # Add door between adjacent rooms
+                if adjacent_room:
+                    add_door_between_rooms(room, adjacent_room, is_horizontal)
             else:
                 # If no position found, try to rotate the room
                 room.width, room.height = room.height, room.width
-                position = find_best_position(room)
+                position, adjacent_room, is_horizontal = find_best_position(room)
                 
                 if position:
                     x, y = position
@@ -472,15 +555,20 @@ class AIHousePlanGenerator:
                         'x': x,
                         'y': y,
                         'width': room.width,
-                        'height': room.height
+                        'height': room.height,
+                        'room': room
                     })
+                    
+                    # Add door between adjacent rooms
+                    if adjacent_room:
+                        add_door_between_rooms(room, adjacent_room, is_horizontal)
                 else:
                     # If still no position found, try to adjust the room size
                     scale_factor = 0.9
                     while scale_factor > 0.5:
                         room.width *= scale_factor
                         room.height *= scale_factor
-                        position = find_best_position(room)
+                        position, adjacent_room, is_horizontal = find_best_position(room)
                         if position:
                             x, y = position
                             room.x = x
@@ -489,8 +577,13 @@ class AIHousePlanGenerator:
                                 'x': x,
                                 'y': y,
                                 'width': room.width,
-                                'height': room.height
+                                'height': room.height,
+                                'room': room
                             })
+                            
+                            # Add door between adjacent rooms
+                            if adjacent_room:
+                                add_door_between_rooms(room, adjacent_room, is_horizontal)
                             break
                         scale_factor -= 0.1
         
@@ -521,10 +614,11 @@ class AIHousePlanGenerator:
             .wall { fill: none; stroke: #333; stroke-width: 2; }
             .room-fill { fill: #f0f0f0; stroke: #333; stroke-width: 1; }
             .door { fill: none; stroke: #8B4513; stroke-width: 2; }
+            .door-arc { fill: none; stroke: #8B4513; stroke-width: 2; }
             .window { fill: #87CEEB; stroke: #333; stroke-width: 1; }
             .room-label { font-family: Arial; font-size: 12px; text-anchor: middle; fill: #333; }
             .specs { font-family: Arial; font-size: 10px; fill: #666; }
-            .terrain { fill: none; stroke: #000; stroke-width: 2; stroke-dasharray: 10,5; }
+            .terrain { fill: none; stroke: #fff; stroke-width: 2; stroke-dasharray: 10,5; }
         """
         
         # Draw terrain outline
@@ -564,6 +658,26 @@ class AIHousePlanGenerator:
                 'height': str(height),
                 'class': 'room-fill'
             })
+            
+            # Draw doors
+            for door in room.doors:
+                door_x = 50 + door.x * scale
+                door_y = 50 + door.y * scale
+                door_width = door.width * scale
+                door_height = door.height * scale
+                
+                if door.is_horizontal:
+                    # Draw horizontal door (arc)
+                    ET.SubElement(svg, 'path', {
+                        'd': f'M {door_x - door_width/2} {door_y} A {door_width/2} {door_width/2} 0 0 1 {door_x + door_width/2} {door_y}',
+                        'class': 'door-arc'
+                    })
+                else:
+                    # Draw vertical door (arc)
+                    ET.SubElement(svg, 'path', {
+                        'd': f'M {door_x} {door_y - door_height/2} A {door_height/2} {door_height/2} 0 0 1 {door_x} {door_y + door_height/2}',
+                        'class': 'door-arc'
+                    })
             
             # Room label
             label_x = x + width / 2
@@ -693,12 +807,12 @@ if __name__ == "__main__":
     print("Generating house plan...")
     save_dynamic_house_plan(
         filename="foo_house.svg",
-        terrain_width=10,  # 100 feet wide
-        terrain_height=20,  # 100 feet deep
-        building_percentage=85,  # 90% of terrain will be built
+        terrain_width=150,  # 100 feet wide
+        terrain_height=200,  # 100 feet deep
+        building_percentage=80,  # 90% of terrain will be built
         num_bedrooms=2,
         num_bathrooms=1,
-        has_dining_room=False,
+        has_dining_room=True,
         has_garage=False,
         style="traditional"
     )
