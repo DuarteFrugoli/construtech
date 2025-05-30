@@ -36,8 +36,8 @@ class HouseSpecs:
     building_percentage: float  # Percentage of terrain to be built (0-100)
     num_bedrooms: int
     num_bathrooms: int
-    has_kitchen: bool = True
-    has_living_room: bool = True
+    has_kitchen: bool = False  # Changed to False by default
+    has_living_room: bool = False  # Changed to False by default
     has_dining_room: bool = False
     has_garage: bool = False
     style: str = "modern"  # modern, traditional, compact
@@ -103,38 +103,34 @@ class AIHousePlanGenerator:
             prompt = f"""
             Design an optimal floor plan layout for a house with these specifications:
             - Terrain dimensions: {specs.terrain_width}ft × {specs.terrain_height}ft
-            - Building percentage: {specs.building_percentage}%
-            - Built area: {specs.built_area:.0f} sq ft
+            - Building percentage: {specs.building_percentage}% (target area: {specs.built_area:.0f} sq ft)
             - Bedrooms: {specs.num_bedrooms}
             - Bathrooms: {specs.num_bathrooms}
-            - Kitchen: {'Yes' if specs.has_kitchen else 'No'}
-            - Living room: {'Yes' if specs.has_living_room else 'No'}
-            - Dining room: {'Yes' if specs.has_dining_room else 'No'}
-            - Garage: {'Yes' if specs.has_garage else 'No'}
             - Style: {specs.style}
             
-            Important guidelines:
-            1. Only include the rooms specified above - do not add extra rooms like hallways
-            2. Rooms can have any proportions that make sense for their function
-            3. Consider typical room size standards and functionality
-            4. Ensure the layout is practical and aesthetically pleasing
-            5. Rooms should be placed directly adjacent to each other (no spacing)
-            6. No rooms should overlap
+            CRITICAL REQUIREMENTS (in order of priority):
+            1. NO ROOM OVERLAPPING - This is an absolute requirement. Rooms must be placed adjacent to each other without any overlap.
+            2. Rooms must fit within the terrain dimensions ({specs.terrain_width}ft × {specs.terrain_height}ft)
+            3. Total area should be between {specs.built_area * 0.85:.0f} and {specs.built_area * 1.05:.0f} sq ft (85% to 105% of target)
+            4. Rooms can have ANY shape and size that makes sense for their function - they don't need to be rectangular
+            5. Rooms should be placed in a way that maximizes space usage while maintaining functionality
+            
+            Additional guidelines:
+            - You can create any type of room that makes sense for the house
+            - Consider typical room size standards and functionality
+            - Ensure the layout is practical and aesthetically pleasing
+            - Rooms should be placed directly adjacent to each other (no spacing)
+            - Feel free to create rooms with non-rectangular shapes if it makes sense for the layout
+            - Try to create interesting room shapes that fit together like puzzle pieces
             
             Return ONLY a JSON object with this exact structure (no markdown formatting, no code blocks):
             {{
                 "rooms": [
                     {{
-                        "name": "Living Room",
-                        "width": 16.0,
-                        "height": 20.0,
+                        "name": "Room Name",
+                        "width": 40.0,
+                        "height": 50.0,
                         "priority": 1
-                    }},
-                    {{
-                        "name": "Kitchen",
-                        "width": 12.0,
-                        "height": 15.0,
-                        "priority": 2
                     }}
                 ],
                 "layout_efficiency": 0.85,
@@ -144,8 +140,8 @@ class AIHousePlanGenerator:
             
             # Configure generation parameters
             generation_config = {
-                "temperature": 0.7,
-                "top_p": 0.8,
+                "temperature": 1.0,  # Maximum temperature for maximum creativity
+                "top_p": 1.0,  # Maximum top_p for maximum diversity
                 "top_k": 40,
                 "max_output_tokens": 1000,
             }
@@ -180,14 +176,6 @@ class AIHousePlanGenerator:
                         continue
                     if "bathroom" in name and specs.num_bathrooms == 0:
                         continue
-                    if "kitchen" in name and not specs.has_kitchen:
-                        continue
-                    if "living" in name and not specs.has_living_room:
-                        continue
-                    if "dining" in name and not specs.has_dining_room:
-                        continue
-                    if "garage" in name and not specs.has_garage:
-                        continue
                     valid_rooms.append(room)
                 layout_data["rooms"] = valid_rooms
                 return self._convert_ai_response_to_rooms(layout_data, specs)
@@ -202,7 +190,13 @@ class AIHousePlanGenerator:
     
     def _convert_ai_response_to_rooms(self, layout_data: Dict, specs: HouseSpecs) -> List[Room]:
         """Convert AI response to Room objects"""
+        print("\nDEBUG: Converting AI response to rooms")
+        print(f"DEBUG: Target built area: {specs.built_area:.0f} sq ft")
+        
         rooms = []
+        total_ai_area = 0
+        
+        # First pass: collect all rooms and calculate total area
         for room_data in layout_data.get("rooms", []):
             room = Room(
                 name=room_data["name"],
@@ -211,18 +205,72 @@ class AIHousePlanGenerator:
                 x=0,  # Will be positioned later
                 y=0
             )
+            total_ai_area += room.area
             rooms.append(room)
+            print(f"DEBUG: Initial {room.name}: {room.width:.0f} x {room.height:.0f} = {room.area:.0f} sq ft")
+        
+        print(f"DEBUG: Total AI area before scaling: {total_ai_area:.0f} sq ft")
+        
+        # Calculate scale factor to match target built area, but with a more flexible approach
+        if total_ai_area > 0:
+            # Calculate a reasonable scale factor that won't exceed terrain dimensions
+            max_room_width = max(room.width for room in rooms)
+            max_room_height = max(room.height for room in rooms)
+            
+            # Calculate scale factors for width and height separately
+            width_scale = (specs.terrain_width * 0.95) / max_room_width  # Leave 5% margin
+            height_scale = (specs.terrain_height * 0.95) / max_room_height  # Leave 5% margin
+            
+            # Use the smaller scale factor to ensure rooms fit within terrain
+            terrain_scale = min(width_scale, height_scale)
+            
+            # Calculate the scale factor needed to reach target area
+            target_scale = math.sqrt(specs.built_area / total_ai_area)
+            
+            # Use the smaller of the two scale factors, but ensure we're within 7% of target
+            scale_factor = min(terrain_scale, target_scale)
+            
+            # If the resulting area would be too small, try to increase the scale
+            if scale_factor == terrain_scale:
+                # Calculate what percentage we'd get with terrain_scale
+                test_area = total_ai_area * (terrain_scale ** 2)
+                test_percentage = (test_area / specs.total_area) * 100
+                
+                # If we're more than 7% below target, try to increase the scale
+                if test_percentage < specs.building_percentage - 7:
+                    # Try to find a scale that gets us closer to target
+                    scale_factor = math.sqrt((specs.built_area * 0.97) / total_ai_area)  # Target 97% of desired area
+                    # But still don't exceed terrain constraints
+                    scale_factor = min(scale_factor, terrain_scale)
+            
+            print(f"DEBUG: Scale factor (constrained by terrain): {scale_factor:.2f}")
+            
+            # Scale all rooms
+            for room in rooms:
+                room.width *= scale_factor
+                room.height *= scale_factor
+                print(f"DEBUG: Scaled {room.name}: {room.width:.0f} x {room.height:.0f} = {room.area:.0f} sq ft")
+        
+        final_area = sum(room.area for room in rooms)
+        print(f"DEBUG: Final total area: {final_area:.0f} sq ft")
+        print(f"DEBUG: Target percentage: {specs.building_percentage}%")
+        print(f"DEBUG: Actual percentage: {(final_area/specs.total_area)*100:.1f}%")
         
         # Position rooms using simple algorithm
         return self._position_rooms(rooms, specs)
     
     def _generate_rule_based_layout(self, specs: HouseSpecs) -> List[Room]:
         """Fallback rule-based room generation"""
+        print("\nDEBUG: Starting rule-based layout generation")
+        print(f"DEBUG: Target built area: {specs.built_area:.0f} sq ft")
+        
         rooms = []
         
         # Calculate house dimensions based on terrain and building percentage
         # Make the house more balanced while respecting terrain proportions
         terrain_ratio = specs.terrain_width / specs.terrain_height
+        print(f"DEBUG: Terrain ratio: {terrain_ratio:.2f}")
+        
         if terrain_ratio > 1.5:  # If terrain is too wide
             house_width = specs.terrain_width * 0.8
             house_height = specs.built_area / house_width
@@ -233,37 +281,42 @@ class AIHousePlanGenerator:
             house_width = math.sqrt(specs.built_area) * 0.9
             house_height = specs.built_area / house_width
         
+        print(f"DEBUG: Initial house dimensions: {house_width:.0f} x {house_height:.0f}")
+        
         # Define room templates with flexible proportions
         if specs.built_area < 800:  # Small house
             room_sizes = {
-                "Living Room": (14, 16),
-                "Kitchen": (10, 12),
-                "Bedroom": (12, 14),
-                "Bathroom": (6, 8)
+                "Living Room": (20, 25),
+                "Kitchen": (15, 20),
+                "Bedroom": (15, 18),
+                "Bathroom": (8, 10)
             }
         elif specs.built_area < 1500:  # Medium house
             room_sizes = {
-                "Living Room": (16, 20),
-                "Kitchen": (12, 14),
-                "Bedroom": (12, 14),
-                "Master Bedroom": (14, 16),
-                "Bathroom": (6, 8)
+                "Living Room": (25, 30),
+                "Kitchen": (20, 25),
+                "Bedroom": (18, 20),
+                "Master Bedroom": (20, 25),
+                "Bathroom": (10, 12)
             }
         else:  # Large house
             room_sizes = {
-                "Living Room": (20, 24),
-                "Kitchen": (14, 16),
-                "Bedroom": (12, 14),
-                "Master Bedroom": (16, 18),
-                "Bathroom": (8, 10)
+                "Living Room": (30, 35),
+                "Kitchen": (25, 30),
+                "Bedroom": (20, 25),
+                "Master Bedroom": (25, 30),
+                "Bathroom": (12, 15)
             }
         
+        print("\nDEBUG: Room sizes before scaling:")
         # Add required rooms
         if specs.has_living_room:
             rooms.append(Room("Living Room", *room_sizes["Living Room"], 0, 0))
+            print(f"DEBUG: Living Room: {room_sizes['Living Room'][0]} x {room_sizes['Living Room'][1]}")
         
         if specs.has_kitchen:
             rooms.append(Room("Kitchen", *room_sizes["Kitchen"], 0, 0))
+            print(f"DEBUG: Kitchen: {room_sizes['Kitchen'][0]} x {room_sizes['Kitchen'][1]}")
         
         # Add bedrooms
         for i in range(specs.num_bedrooms):
@@ -274,25 +327,40 @@ class AIHousePlanGenerator:
                 name = f"Bedroom {i+1}" if specs.num_bedrooms > 1 else "Bedroom"
                 size = room_sizes["Bedroom"]
             rooms.append(Room(name, *size, 0, 0))
+            print(f"DEBUG: {name}: {size[0]} x {size[1]}")
         
         # Add bathrooms
         for i in range(specs.num_bathrooms):
             name = f"Bathroom {i+1}" if specs.num_bathrooms > 1 else "Bathroom"
             rooms.append(Room(name, *room_sizes["Bathroom"], 0, 0))
+            print(f"DEBUG: {name}: {room_sizes['Bathroom'][0]} x {room_sizes['Bathroom'][1]}")
         
         if specs.has_dining_room:
-            rooms.append(Room("Dining Room", 12, 14, 0, 0))
+            rooms.append(Room("Dining Room", 20, 25, 0, 0))
+            print("DEBUG: Dining Room: 20 x 25")
         
         if specs.has_garage:
-            rooms.append(Room("Garage", 20, 20, 0, 0))
+            rooms.append(Room("Garage", 25, 30, 0, 0))
+            print("DEBUG: Garage: 25 x 30")
         
-        # Adjust room sizes to fit built area while maintaining proportions
+        # Calculate current total area
         total_room_area = sum(room.area for room in rooms)
-        if total_room_area > specs.built_area * 0.85:  # Leave 15% for circulation
-            scale_factor = math.sqrt((specs.built_area * 0.85) / total_room_area)
+        print(f"\nDEBUG: Total room area before scaling: {total_room_area:.0f} sq ft")
+        
+        # Scale rooms to match the desired building percentage
+        target_area = specs.built_area
+        if total_room_area > 0:
+            scale_factor = math.sqrt(target_area / total_room_area)
+            print(f"DEBUG: Scale factor: {scale_factor:.2f}")
             for room in rooms:
                 room.width *= scale_factor
                 room.height *= scale_factor
+                print(f"DEBUG: Scaled {room.name}: {room.width:.0f} x {room.height:.0f} = {room.area:.0f} sq ft")
+        
+        final_area = sum(room.area for room in rooms)
+        print(f"\nDEBUG: Final total area: {final_area:.0f} sq ft")
+        print(f"DEBUG: Target percentage: {specs.building_percentage}%")
+        print(f"DEBUG: Actual percentage: {(final_area/specs.total_area)*100:.1f}%")
         
         return self._position_rooms(rooms, specs)
     
@@ -319,37 +387,6 @@ class AIHousePlanGenerator:
                 'height': rooms[0].height
             })
         
-        def get_bounds():
-            """Get the current bounds of all placed rooms"""
-            if not placed_rectangles:
-                return 0, 0, 0, 0
-            min_x = min(r['x'] for r in placed_rectangles)
-            min_y = min(r['y'] for r in placed_rectangles)
-            max_x = max(r['x'] + r['width'] for r in placed_rectangles)
-            max_y = max(r['y'] + r['height'] for r in placed_rectangles)
-            return min_x, min_y, max_x, max_y
-        
-        def calculate_shape_score(x, y, width, height):
-            """Calculate how well this placement maintains a rectangular shape"""
-            # Get current bounds
-            min_x, min_y, max_x, max_y = get_bounds()
-            
-            # Calculate new bounds if this room is placed
-            new_min_x = min(min_x, x)
-            new_min_y = min(min_y, y)
-            new_max_x = max(max_x, x + width)
-            new_max_y = max(max_y, y + height)
-            
-            # Calculate the area of the bounding rectangle
-            bounding_area = (new_max_x - new_min_x) * (new_max_y - new_min_y)
-            
-            # Calculate the total area of all rooms including the new one
-            total_room_area = sum(r['width'] * r['height'] for r in placed_rectangles) + (width * height)
-            
-            # The closer the bounding area is to the total room area, the more rectangular the shape
-            # We want to minimize the difference between bounding area and total room area
-            return bounding_area - total_room_area
-        
         def is_valid_placement(x, y, width, height):
             """Check if a room can be placed at the given position without overlapping"""
             # Check if room fits within terrain bounds
@@ -366,57 +403,51 @@ class AIHousePlanGenerator:
                     return False
             return True
         
-        def find_best_adjacent_position(room):
-            """Find the best position where the room is adjacent to at least one existing room"""
+        def find_best_position(room):
+            """Find the best position for a room that maximizes space usage"""
             width = room.width
             height = room.height
-            best_score = float('inf')
             best_position = None
+            best_score = float('-inf')
             
-            # Try each placed rectangle
+            # Try different positions around existing rooms
             for rect in placed_rectangles:
-                # Try placing to the right
-                x = rect['x'] + rect['width']
-                y = rect['y']
-                if is_valid_placement(x, y, width, height):
-                    score = calculate_shape_score(x, y, width, height)
-                    if score < best_score:
-                        best_score = score
-                        best_position = (x, y)
+                # Try positions around the rectangle
+                positions = [
+                    (rect['x'] + rect['width'], rect['y']),  # Right
+                    (rect['x'] - width, rect['y']),  # Left
+                    (rect['x'], rect['y'] + rect['height']),  # Below
+                    (rect['x'], rect['y'] - height),  # Above
+                ]
                 
-                # Try placing to the left
-                x = rect['x'] - width
-                y = rect['y']
-                if is_valid_placement(x, y, width, height):
-                    score = calculate_shape_score(x, y, width, height)
-                    if score < best_score:
-                        best_score = score
-                        best_position = (x, y)
-                
-                # Try placing above
-                x = rect['x']
-                y = rect['y'] - height
-                if is_valid_placement(x, y, width, height):
-                    score = calculate_shape_score(x, y, width, height)
-                    if score < best_score:
-                        best_score = score
-                        best_position = (x, y)
-                
-                # Try placing below
-                x = rect['x']
-                y = rect['y'] + rect['height']
-                if is_valid_placement(x, y, width, height):
-                    score = calculate_shape_score(x, y, width, height)
-                    if score < best_score:
-                        best_score = score
-                        best_position = (x, y)
+                for x, y in positions:
+                    if is_valid_placement(x, y, width, height):
+                        # Calculate a score based on how well the room fits
+                        # Prefer positions that create a more compact layout
+                        score = 0
+                        
+                        # Prefer positions that are adjacent to multiple rooms
+                        for other_rect in placed_rectangles:
+                            if (x + width == other_rect['x'] or x == other_rect['x'] + other_rect['width'] or
+                                y + height == other_rect['y'] or y == other_rect['y'] + other_rect['height']):
+                                score += 1
+                        
+                        # Prefer positions that are closer to the center of the terrain
+                        center_x = specs.terrain_width / 2
+                        center_y = specs.terrain_height / 2
+                        distance_to_center = abs((x + width/2) - center_x) + abs((y + height/2) - center_y)
+                        score -= distance_to_center / 100  # Normalize the distance impact
+                        
+                        if score > best_score:
+                            best_score = score
+                            best_position = (x, y)
             
             return best_position
         
         # Place remaining rooms
         for i in range(1, len(rooms)):
             room = rooms[i]
-            position = find_best_adjacent_position(room)
+            position = find_best_position(room)
             
             if position:
                 x, y = position
@@ -429,21 +460,12 @@ class AIHousePlanGenerator:
                     'height': room.height
                 })
             else:
-                # If no adjacent position found, try to place it at the first available position
-                # This should rarely happen if the total area is sufficient
-                best_score = float('inf')
-                best_position = None
+                # If no position found, try to rotate the room
+                room.width, room.height = room.height, room.width
+                position = find_best_position(room)
                 
-                for y in range(0, int(specs.terrain_height), int(room.height)):
-                    for x in range(0, int(specs.terrain_width), int(room.width)):
-                        if is_valid_placement(x, y, room.width, room.height):
-                            score = calculate_shape_score(x, y, room.width, room.height)
-                            if score < best_score:
-                                best_score = score
-                                best_position = (x, y)
-                
-                if best_position:
-                    x, y = best_position
+                if position:
+                    x, y = position
                     room.x = x
                     room.y = y
                     placed_rectangles.append({
@@ -452,6 +474,25 @@ class AIHousePlanGenerator:
                         'width': room.width,
                         'height': room.height
                     })
+                else:
+                    # If still no position found, try to adjust the room size
+                    scale_factor = 0.9
+                    while scale_factor > 0.5:
+                        room.width *= scale_factor
+                        room.height *= scale_factor
+                        position = find_best_position(room)
+                        if position:
+                            x, y = position
+                            room.x = x
+                            room.y = y
+                            placed_rectangles.append({
+                                'x': x,
+                                'y': y,
+                                'width': room.width,
+                                'height': room.height
+                            })
+                            break
+                        scale_factor -= 0.1
         
         return rooms
     
@@ -483,14 +524,37 @@ class AIHousePlanGenerator:
             .window { fill: #87CEEB; stroke: #333; stroke-width: 1; }
             .room-label { font-family: Arial; font-size: 12px; text-anchor: middle; fill: #333; }
             .specs { font-family: Arial; font-size: 10px; fill: #666; }
+            .terrain { fill: none; stroke: #000; stroke-width: 2; stroke-dasharray: 10,5; }
         """
         
+        # Draw terrain outline
+        terrain_x = 50
+        terrain_y = 50
+        terrain_width = specs.terrain_width * scale
+        terrain_height = specs.terrain_height * scale
+        
+        ET.SubElement(svg, 'rect', {
+            'x': str(terrain_x),
+            'y': str(terrain_y),
+            'width': str(terrain_width),
+            'height': str(terrain_height),
+            'class': 'terrain'
+        })
+        
         # Draw rooms
+        total_constructed_area = 0
+        room_areas = []
+        
         for room in rooms:
             x = 50 + room.x * scale
             y = 50 + room.y * scale
             width = room.width * scale
             height = room.height * scale
+            
+            # Calculate room area
+            room_area = room.width * room.height
+            total_constructed_area += room_area
+            room_areas.append((room.name, room_area))
             
             # Room rectangle
             ET.SubElement(svg, 'rect', {
@@ -542,6 +606,15 @@ class AIHousePlanGenerator:
             'style': 'font-family: Arial; font-size: 16px; font-weight: bold; text-anchor: middle; fill: #333;'
         })
         title.text = f"AI-Generated House Plan"
+        
+        # Print area statistics
+        print("\nArea Statistics:")
+        print(f"Total Terrain Area: {specs.total_area:.0f} sq ft")
+        print(f"Total Constructed Area: {total_constructed_area:.0f} sq ft")
+        print(f"Percentage of Terrain Used: {(total_constructed_area/specs.total_area)*100:.1f}%")
+        print("\nRoom Areas:")
+        for room_name, area in room_areas:
+            print(f"{room_name}: {area:.0f} sq ft ({(area/total_constructed_area)*100:.1f}% of constructed area)")
         
         return svg
 
@@ -620,11 +693,11 @@ if __name__ == "__main__":
     print("Generating house plan...")
     save_dynamic_house_plan(
         filename="foo_house.svg",
-        terrain_width=200,  # 100 feet wide
-        terrain_height=100,  # 100 feet deep
-        building_percentage=50,  # 90% of terrain will be built
-        num_bedrooms=4,
-        num_bathrooms=2,
+        terrain_width=10,  # 100 feet wide
+        terrain_height=20,  # 100 feet deep
+        building_percentage=85,  # 90% of terrain will be built
+        num_bedrooms=2,
+        num_bathrooms=1,
         has_dining_room=False,
         has_garage=False,
         style="traditional"
