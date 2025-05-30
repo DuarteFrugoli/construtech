@@ -512,14 +512,20 @@ class AIHousePlanGenerator:
             """Add a door between two adjacent rooms using consistent dimensions"""
             if is_horizontal:
                 # Horizontal wall (top/bottom)
-                x = max(room1.x, room2.x) + (min(room1.x + room1.width, room2.x + room2.width) - max(room1.x, room2.x)) / 2
-                y = room1.y if room1.y < room2.y else room2.y + room2.height
-                door = Door(x=x, y=y, width=door_size, height=door_size, is_horizontal=True)
+                wall_start = max(room1.x, room2.x)
+                wall_end = min(room1.x + room1.width, room2.x + room2.width)
+                wall_length = wall_end - wall_start
+                door_x = wall_start + wall_length/2
+                door_y = room1.y if room1.y < room2.y else room2.y + room2.height
+                door = Door(x=door_x, y=door_y, width=door_size, height=door_size, is_horizontal=True)
             else:
                 # Vertical wall (left/right)
-                x = room1.x if room1.x < room2.x else room2.x + room2.width
-                y = max(room1.y, room2.y) + (min(room1.y + room1.height, room2.y + room2.height) - max(room1.y, room2.y)) / 2
-                door = Door(x=x, y=y, width=door_size, height=door_size, is_horizontal=False)
+                wall_start = max(room1.y, room2.y)
+                wall_end = min(room1.y + room1.height, room2.y + room2.height)
+                wall_length = wall_end - wall_start
+                door_x = room1.x if room1.x < room2.x else room2.x + room2.width
+                door_y = wall_start + wall_length/2
+                door = Door(x=door_x, y=door_y, width=door_size, height=door_size, is_horizontal=False)
             
             room1.doors.append(door)
             room2.doors.append(door)
@@ -717,7 +723,7 @@ class AIHousePlanGenerator:
                         'd': f'M {door_x - door_width/2} {door_y} A {door_width/2} {door_width/2} 0 0 1 {door_x} {door_y - door_width/2}',
                         'class': 'door-arc'
                     })
-                    # Draw door opening line (only to center)
+                    # Draw door opening line (from wall to center)
                     ET.SubElement(svg, 'line', {
                         'x1': str(door_x - door_width/2),
                         'y1': str(door_y),
@@ -725,7 +731,7 @@ class AIHousePlanGenerator:
                         'y2': str(door_y),
                         'class': 'door-opening'
                     })
-                    # Draw projection line (only to center)
+                    # Draw projection line (from center to arc)
                     ET.SubElement(svg, 'line', {
                         'x1': str(door_x),
                         'y1': str(door_y),
@@ -747,7 +753,7 @@ class AIHousePlanGenerator:
                         'd': f'M {door_x} {door_y - door_height/2} A {door_height/2} {door_height/2} 0 0 1 {door_x + door_height/2} {door_y}',
                         'class': 'door-arc'
                     })
-                    # Draw door opening line (only to center)
+                    # Draw door opening line (from wall to center)
                     ET.SubElement(svg, 'line', {
                         'x1': str(door_x),
                         'y1': str(door_y - door_height/2),
@@ -755,7 +761,7 @@ class AIHousePlanGenerator:
                         'y2': str(door_y),
                         'class': 'door-opening'
                     })
-                    # Draw projection line (only to center)
+                    # Draw projection line (from center to arc)
                     ET.SubElement(svg, 'line', {
                         'x1': str(door_x),
                         'y1': str(door_y),
@@ -907,12 +913,12 @@ if __name__ == "__main__":
     print("Generating house plan...")
     save_dynamic_house_plan(
         filename="foo_house.svg",
-        terrain_width=100,  # 100 feet wide
-        terrain_height=150,  # 100 feet deep
-        building_percentage=80,  # 90% of terrain will be built
-        num_bedrooms=2,
-        num_bathrooms=1,
-        has_dining_room=False,
+        terrain_width=200,  # 100 feet wide
+        terrain_height=350,  # 100 feet deep
+        building_percentage=100,  # 90% of terrain will be built
+        num_bedrooms=3,
+        num_bathrooms=2,
+        has_dining_room=True,
         has_garage=False,
         style="traditional"
     )
