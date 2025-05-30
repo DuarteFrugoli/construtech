@@ -505,7 +505,7 @@ class AIHousePlanGenerator:
         
         # Calculate mean wall length once for all doors
         mean_wall_length = calculate_mean_wall_length()
-        door_size = mean_wall_length * 0.12  # Door size is 12% of mean wall length
+        door_size = mean_wall_length * 0.2  # Door size is 20% of mean wall length
         print(f"DEBUG: Door size: {door_size:.2f}")
         
         def add_door_between_rooms(room1, room2, is_horizontal):
@@ -613,11 +613,11 @@ class AIHousePlanGenerator:
         # Add styles
         style = ET.SubElement(svg, 'style')
         style.text = """
-            .wall { fill: none; stroke: #333; stroke-width: 2; }
+            .wall { fill: none; stroke: #333; stroke-width: 3; }
             .room-fill { fill: #f0f0f0; stroke: #333; stroke-width: 1; }
             .door { fill: none; stroke: #8B4513; stroke-width: 2; }
             .door-arc { fill: none; stroke: #8B4513; stroke-width: 2; }
-            .door-opening { fill: none; stroke: #999; stroke-width: 1; stroke-dasharray: 2,2; }
+            .door-opening { fill: none; stroke: #999; stroke-width: 0.5; }
             .window { fill: #87CEEB; stroke: #333; stroke-width: 1; }
             .room-label { font-family: Arial; font-size: 12px; text-anchor: middle; fill: #333; }
             .specs { font-family: Arial; font-size: 10px; fill: #666; }
@@ -642,6 +642,7 @@ class AIHousePlanGenerator:
         total_constructed_area = 0
         room_areas = []
         
+        # First pass: draw all room rectangles
         for room in rooms:
             x = 50 + room.x * scale
             y = 50 + room.y * scale
@@ -662,7 +663,7 @@ class AIHousePlanGenerator:
                 'class': 'room-fill'
             })
             
-            # Draw doors
+            # Draw walls with gaps for doors
             for door in room.doors:
                 door_x = 50 + door.x * scale
                 door_y = 50 + door.y * scale
@@ -670,7 +671,48 @@ class AIHousePlanGenerator:
                 door_height = door.height * scale
                 
                 if door.is_horizontal:
-                    # Draw horizontal door opening (dashed line)
+                    # Draw wall segments around door
+                    ET.SubElement(svg, 'line', {
+                        'x1': str(x),
+                        'y1': str(door_y),
+                        'x2': str(door_x - door_width/2),
+                        'y2': str(door_y),
+                        'class': 'wall'
+                    })
+                    ET.SubElement(svg, 'line', {
+                        'x1': str(door_x + door_width/2),
+                        'y1': str(door_y),
+                        'x2': str(x + width),
+                        'y2': str(door_y),
+                        'class': 'wall'
+                    })
+                else:
+                    # Draw wall segments around door
+                    ET.SubElement(svg, 'line', {
+                        'x1': str(door_x),
+                        'y1': str(y),
+                        'x2': str(door_x),
+                        'y2': str(door_y - door_height/2),
+                        'class': 'wall'
+                    })
+                    ET.SubElement(svg, 'line', {
+                        'x1': str(door_x),
+                        'y1': str(door_y + door_height/2),
+                        'x2': str(door_x),
+                        'y2': str(y + height),
+                        'class': 'wall'
+                    })
+        
+        # Second pass: draw all doors
+        for room in rooms:
+            for door in room.doors:
+                door_x = 50 + door.x * scale
+                door_y = 50 + door.y * scale
+                door_width = door.width * scale
+                door_height = door.height * scale
+                
+                if door.is_horizontal:
+                    # Draw horizontal door opening (thin line)
                     ET.SubElement(svg, 'line', {
                         'x1': str(door_x - door_width/2),
                         'y1': str(door_y),
@@ -683,8 +725,16 @@ class AIHousePlanGenerator:
                         'd': f'M {door_x - door_width/2} {door_y} A {door_width/2} {door_width/2} 0 0 1 {door_x} {door_y - door_width/2}',
                         'class': 'door-arc'
                     })
+                    # Draw closing line for quarter circle (perpendicular to wall)
+                    ET.SubElement(svg, 'line', {
+                        'x1': str(door_x),
+                        'y1': str(door_y),
+                        'x2': str(door_x),
+                        'y2': str(door_y - door_width/2),
+                        'class': 'door-opening'
+                    })
                 else:
-                    # Draw vertical door opening (dashed line)
+                    # Draw vertical door opening (thin line)
                     ET.SubElement(svg, 'line', {
                         'x1': str(door_x),
                         'y1': str(door_y - door_height/2),
@@ -697,6 +747,21 @@ class AIHousePlanGenerator:
                         'd': f'M {door_x} {door_y - door_height/2} A {door_height/2} {door_height/2} 0 0 1 {door_x + door_height/2} {door_y}',
                         'class': 'door-arc'
                     })
+                    # Draw closing line for quarter circle (perpendicular to wall)
+                    ET.SubElement(svg, 'line', {
+                        'x1': str(door_x),
+                        'y1': str(door_y),
+                        'x2': str(door_x + door_height/2),
+                        'y2': str(door_y),
+                        'class': 'door-opening'
+                    })
+        
+        # Third pass: draw room labels
+        for room in rooms:
+            x = 50 + room.x * scale
+            y = 50 + room.y * scale
+            width = room.width * scale
+            height = room.height * scale
             
             # Room label
             label_x = x + width / 2
@@ -826,12 +891,12 @@ if __name__ == "__main__":
     print("Generating house plan...")
     save_dynamic_house_plan(
         filename="foo_house.svg",
-        terrain_width=490,  # 100 feet wide
-        terrain_height=430,  # 100 feet deep
-        building_percentage=85,  # 90% of terrain will be built
-        num_bedrooms=4,
-        num_bathrooms=3,
-        has_dining_room=True,
+        terrain_width=100,  # 100 feet wide
+        terrain_height=150,  # 100 feet deep
+        building_percentage=80,  # 90% of terrain will be built
+        num_bedrooms=2,
+        num_bathrooms=1,
+        has_dining_room=False,
         has_garage=False,
         style="traditional"
     )
