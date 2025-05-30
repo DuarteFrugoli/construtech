@@ -514,12 +514,12 @@ class AIHousePlanGenerator:
                 # Horizontal wall (top/bottom)
                 x = max(room1.x, room2.x) + (min(room1.x + room1.width, room2.x + room2.width) - max(room1.x, room2.x)) / 2
                 y = room1.y if room1.y < room2.y else room2.y + room2.height
-                door = Door(x=x, y=y, width=door_size, height=door_size * 2.33, is_horizontal=True)
+                door = Door(x=x, y=y, width=door_size, height=door_size, is_horizontal=True)
             else:
                 # Vertical wall (left/right)
                 x = room1.x if room1.x < room2.x else room2.x + room2.width
                 y = max(room1.y, room2.y) + (min(room1.y + room1.height, room2.y + room2.height) - max(room1.y, room2.y)) / 2
-                door = Door(x=x, y=y, width=door_size * 2.33, height=door_size, is_horizontal=False)
+                door = Door(x=x, y=y, width=door_size, height=door_size, is_horizontal=False)
             
             room1.doors.append(door)
             room2.doors.append(door)
@@ -712,20 +712,20 @@ class AIHousePlanGenerator:
                 door_height = door.height * scale
                 
                 if door.is_horizontal:
-                    # Draw horizontal door opening (thin line)
-                    ET.SubElement(svg, 'line', {
-                        'x1': str(door_x - door_width/2),
-                        'y1': str(door_y),
-                        'x2': str(door_x + door_width/2),
-                        'y2': str(door_y),
-                        'class': 'door-opening'
-                    })
                     # Draw quarter circle door arc
                     ET.SubElement(svg, 'path', {
                         'd': f'M {door_x - door_width/2} {door_y} A {door_width/2} {door_width/2} 0 0 1 {door_x} {door_y - door_width/2}',
                         'class': 'door-arc'
                     })
-                    # Draw closing line for quarter circle (perpendicular to wall)
+                    # Draw door opening line (only to center)
+                    ET.SubElement(svg, 'line', {
+                        'x1': str(door_x - door_width/2),
+                        'y1': str(door_y),
+                        'x2': str(door_x),
+                        'y2': str(door_y),
+                        'class': 'door-opening'
+                    })
+                    # Draw projection line (only to center)
                     ET.SubElement(svg, 'line', {
                         'x1': str(door_x),
                         'y1': str(door_y),
@@ -733,27 +733,43 @@ class AIHousePlanGenerator:
                         'y2': str(door_y - door_width/2),
                         'class': 'door-opening'
                     })
-                else:
-                    # Draw vertical door opening (thin line)
+                    # Draw remaining wall segment (black)
                     ET.SubElement(svg, 'line', {
                         'x1': str(door_x),
-                        'y1': str(door_y - door_height/2),
-                        'x2': str(door_x),
-                        'y2': str(door_y + door_height/2),
-                        'class': 'door-opening'
+                        'y1': str(door_y),
+                        'x2': str(door_x + door_width/2),
+                        'y2': str(door_y),
+                        'class': 'wall'
                     })
+                else:
                     # Draw quarter circle door arc
                     ET.SubElement(svg, 'path', {
                         'd': f'M {door_x} {door_y - door_height/2} A {door_height/2} {door_height/2} 0 0 1 {door_x + door_height/2} {door_y}',
                         'class': 'door-arc'
                     })
-                    # Draw closing line for quarter circle (perpendicular to wall)
+                    # Draw door opening line (only to center)
+                    ET.SubElement(svg, 'line', {
+                        'x1': str(door_x),
+                        'y1': str(door_y - door_height/2),
+                        'x2': str(door_x),
+                        'y2': str(door_y),
+                        'class': 'door-opening'
+                    })
+                    # Draw projection line (only to center)
                     ET.SubElement(svg, 'line', {
                         'x1': str(door_x),
                         'y1': str(door_y),
                         'x2': str(door_x + door_height/2),
                         'y2': str(door_y),
                         'class': 'door-opening'
+                    })
+                    # Draw remaining wall segment (black)
+                    ET.SubElement(svg, 'line', {
+                        'x1': str(door_x),
+                        'y1': str(door_y),
+                        'x2': str(door_x),
+                        'y2': str(door_y + door_height/2),
+                        'class': 'wall'
                     })
         
         # Third pass: draw room labels
