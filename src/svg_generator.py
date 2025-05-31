@@ -225,6 +225,17 @@ class SVGHousePlanGenerator:
             back_y1 = terrain_y
             back_x2 = terrain_x + terrain_width_scaled
             back_y2 = terrain_y + terrain_height_scaled
+            
+            # Draw lateral lines (top and bottom)
+            lateral1_x1 = terrain_x
+            lateral1_y1 = terrain_y
+            lateral1_x2 = terrain_x + terrain_width_scaled
+            lateral1_y2 = terrain_y
+            
+            lateral2_x1 = terrain_x
+            lateral2_y1 = terrain_y + terrain_height_scaled
+            lateral2_x2 = terrain_x + terrain_width_scaled
+            lateral2_y2 = terrain_y + terrain_height_scaled
         else:
             # If height is longer, draw horizontal line
             front_x1 = terrain_x
@@ -237,8 +248,35 @@ class SVGHousePlanGenerator:
             back_y1 = terrain_y + terrain_height_scaled
             back_x2 = terrain_x + terrain_width_scaled
             back_y2 = terrain_y + terrain_height_scaled
+            
+            # Draw lateral lines (left and right)
+            lateral1_x1 = terrain_x
+            lateral1_y1 = terrain_y
+            lateral1_x2 = terrain_x
+            lateral1_y2 = terrain_y + terrain_height_scaled
+            
+            lateral2_x1 = terrain_x + terrain_width_scaled
+            lateral2_y1 = terrain_y
+            lateral2_x2 = terrain_x + terrain_width_scaled
+            lateral2_y2 = terrain_y + terrain_height_scaled
         
-        # Draw back line with thicker green line (draw first so it's below other elements)
+        # Draw lateral lines with cyan color
+        ET.SubElement(svg, 'line', {
+            'x1': str(lateral1_x1),
+            'y1': str(lateral1_y1),
+            'x2': str(lateral1_x2),
+            'y2': str(lateral1_y2),
+            'style': 'stroke: #00ffff; stroke-width: 4;'
+        })
+        ET.SubElement(svg, 'line', {
+            'x1': str(lateral2_x1),
+            'y1': str(lateral2_y1),
+            'x2': str(lateral2_x2),
+            'y2': str(lateral2_y2),
+            'style': 'stroke: #00ffff; stroke-width: 4;'
+        })
+        
+        # Draw back line with thicker green line
         ET.SubElement(svg, 'line', {
             'x1': str(back_x1),
             'y1': str(back_y1),
@@ -353,6 +391,23 @@ class SVGHousePlanGenerator:
 
         # Update legend_y for front line
         legend_y += len(pd_text) * 20 + 10
+
+        # Add lateral line legend
+        ET.SubElement(svg, 'line', {
+            'x1': str(legend_x),
+            'y1': str(legend_y),
+            'x2': str(legend_x + 30),
+            'y2': str(legend_y),
+            'style': 'stroke: #00ffff; stroke-width: 4;'
+        })
+        ET.SubElement(svg, 'text', {
+            'x': str(legend_x + 35),
+            'y': str(legend_y + 4),
+            'style': 'font-family: Arial; font-size: 12px; fill: #333;'  # Match specs style
+        }).text = TRANSLATIONS['Lateral of House']
+
+        # Update legend_y for back line
+        legend_y += 20
 
         # Add back line legend
         ET.SubElement(svg, 'line', {
