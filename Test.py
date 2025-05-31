@@ -12,15 +12,15 @@ OPENAI_API_KEY = "sk-proj-cezBGv942O3RMTx6wnsR1x8ZQaIEdwy6IeldWZ_K78kA_giK2vmdVy
 
 # Logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # <-- Corrigido
 
 # App FastAPI
 app = FastAPI()
 
-# CORS
+# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Permitir todas as origens
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,7 +51,6 @@ def obter_elevacoes(pontos: List[Tuple[float, float]]) -> List[float]:
 def analisar_terreno(endereco: str = Query(..., description="Endereço completo da propriedade")):
     try:
         PRECISAO = 0.0005
-
         lat, lng = obter_coordenadas(endereco)
         pontos = [
             (lat, lng), (lat + PRECISAO, lng), (lat - PRECISAO, lng),
@@ -130,10 +129,3 @@ def gerar_imagem_casa(descricao: str = Query(...), endereco: str = Query(...)):
     except Exception as e:
         logger.error(f"Erro ao gerar imagem com DALL·E: {str(e)}")
         raise HTTPException(status_code=500, detail="Erro ao gerar imagem com OpenAI")
-
-
-
-
-endereco = input()
-descricao = input()
-print(gerar_imagem_casa(descricao=descricao, endereco=endereco))
