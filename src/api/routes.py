@@ -1,15 +1,18 @@
 """
 API routes for house plan generation.
 """
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Dict
 import xml.etree.ElementTree as ET
+import os
 
 from core.models import HouseSpecs
 from generators.house_plan_generator import HousePlanGenerator
 from svg_generator import SVGHousePlanGenerator
+from terrain_analyzer import TerrainAnalyzer
+from image_generator import HouseImageGenerator
 
 app = FastAPI(
     title="House Plan Generator API",
@@ -26,6 +29,10 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+# Initialize services with API keys
+terrain_analyzer = TerrainAnalyzer("AIzaSyAB_RNeA3SUG_mUivMEZrKECowFebeHChw")
+image_generator = HouseImageGenerator("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")
+
 class HousePlanRequest(BaseModel):
     """Request model for house plan generation."""
     terrain_width: float = Field(..., description="Width of the terrain in meters", gt=0)
@@ -36,6 +43,33 @@ class HousePlanRequest(BaseModel):
     has_garage: bool = Field(False, description="Whether to include garage")
     style: str = Field("modern", description="House style (modern, traditional, compact)")
     gemini_api_key: Optional[str] = Field(None, description="Google Gemini API key for AI generation")
+
+class ImageGenerationRequest(BaseModel):
+    """Request model for house image generation."""
+    description: str = Field(..., description="Description of the house")
+    terrain_data: Dict = Field(..., description="Terrain analysis data")
+
+@app.get("/analyze-terrain")
+async def analyze_terrain(address: str = Query(..., description="Address to analyze")):
+    """
+    Analyze terrain characteristics for a given address.
+    Returns elevation data, slope information, and other relevant metrics.
+    """
+    try:
+        return terrain_analyzer.analyze_terrain(address)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/generate-house-image")
+async def generate_house_image(request: ImageGenerationRequest):
+    """
+    Generate a realistic house image using DALL-E based on the description and terrain data.
+    """
+    try:
+        image_url = image_generator.generate_house_image(request.description, request.terrain_data)
+        return {"image_url": image_url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/generate-house-plan")
 async def generate_house_plan(request: HousePlanRequest) -> Response:
