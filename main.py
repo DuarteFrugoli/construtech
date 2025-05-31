@@ -46,7 +46,6 @@ class Room:
 class HouseSpecs:
     terrain_width: float  # Terrain width in feet
     terrain_height: float  # Terrain height in feet
-    building_percentage: float  # Percentage of terrain to be built (0-100)
     num_bedrooms: int
     num_bathrooms: int
     has_kitchen: bool = False  # Changed to False by default
@@ -55,6 +54,9 @@ class HouseSpecs:
     has_garage: bool = False
     style: str = "modern"  # modern, traditional, compact
     
+    # Taxa de Ocupação fixa conforme Plano Diretor
+    TAXA_OCUPACAO: float = 0.70  # 70% fixo
+    
     @property
     def total_area(self) -> float:
         """Calculate total terrain area in sq ft"""
@@ -62,8 +64,8 @@ class HouseSpecs:
     
     @property
     def built_area(self) -> float:
-        """Calculate built area based on percentage"""
-        return self.total_area * (self.building_percentage / 100)
+        """Calculate built area based on Taxa de Ocupação fixa"""
+        return self.total_area * self.TAXA_OCUPACAO
 
 class AIHousePlanGenerator:
     def __init__(self, gemini_api_key: Optional[str] = None):
@@ -116,7 +118,7 @@ class AIHousePlanGenerator:
             prompt = f"""
             Design an optimal floor plan layout for a house with these specifications:
             - Terrain dimensions: {specs.terrain_width}ft × {specs.terrain_height}ft
-            - Building percentage: {specs.building_percentage}% (target area: {specs.built_area:.0f} sq ft)
+            - Taxa de Ocupação: {specs.TAXA_OCUPACAO*100}% (target area: {specs.built_area:.0f} sq ft)
             - Bedrooms: {specs.num_bedrooms}
             - Bathrooms: {specs.num_bathrooms}
             - Style: {specs.style}
@@ -231,6 +233,11 @@ class AIHousePlanGenerator:
         print("\nDEBUG: Converting AI response to rooms")
         print(f"DEBUG: Target built area: {specs.built_area:.0f} sq ft")
         
+        # Seção especial de prints do Plano Diretor
+        print("\n=== CHECKLIST PLANO DIRETOR ===")
+        print("✓ Taxa de Ocupação (TO) fixa em 70% conforme Plano Diretor")
+        print("=== FIM DO CHECKLIST ===\n")
+        
         rooms = []
         total_ai_area = 0
         
@@ -275,7 +282,7 @@ class AIHousePlanGenerator:
                 test_percentage = (test_area / specs.total_area) * 100
                 
                 # If we're more than 7% below target, try to increase the scale
-                if test_percentage < specs.building_percentage - 7:
+                if test_percentage < specs.TAXA_OCUPACAO * 100 - 7:
                     # Try to find a scale that gets us closer to target
                     scale_factor = math.sqrt((specs.built_area * 0.97) / total_ai_area)  # Target 97% of desired area
                     # But still don't exceed terrain constraints
@@ -291,7 +298,7 @@ class AIHousePlanGenerator:
         
         final_area = sum(room.area for room in rooms)
         print(f"DEBUG: Final total area: {final_area:.0f} sq ft")
-        print(f"DEBUG: Target percentage: {specs.building_percentage}%")
+        print(f"DEBUG: Taxa de Ocupação: {specs.TAXA_OCUPACAO*100}%")
         print(f"DEBUG: Actual percentage: {(final_area/specs.total_area)*100:.1f}%")
         
         # Position rooms using simple algorithm
@@ -301,6 +308,11 @@ class AIHousePlanGenerator:
         """Fallback rule-based room generation"""
         print("\nDEBUG: Starting rule-based layout generation")
         print(f"DEBUG: Target built area: {specs.built_area:.0f} sq ft")
+        
+        # Seção especial de prints do Plano Diretor
+        print("\n=== CHECKLIST PLANO DIRETOR ===")
+        print("✓ Taxa de Ocupação (TO) fixa em 70% conforme Plano Diretor")
+        print("=== FIM DO CHECKLIST ===\n")
         
         rooms = []
         
@@ -397,7 +409,7 @@ class AIHousePlanGenerator:
         
         final_area = sum(room.area for room in rooms)
         print(f"\nDEBUG: Final total area: {final_area:.0f} sq ft")
-        print(f"DEBUG: Target percentage: {specs.building_percentage}%")
+        print(f"DEBUG: Taxa de Ocupação: {specs.TAXA_OCUPACAO*100}%")
         print(f"DEBUG: Actual percentage: {(final_area/specs.total_area)*100:.1f}%")
         
         return self._position_rooms(rooms, specs)
@@ -866,7 +878,6 @@ class AIHousePlanGenerator:
 def create_dynamic_house_plan(
     terrain_width: float,
     terrain_height: float,
-    building_percentage: float,
     num_bedrooms: int,
     num_bathrooms: int,
     has_dining_room: bool = False,
@@ -880,7 +891,6 @@ def create_dynamic_house_plan(
     Args:
         terrain_width: Width of the terrain in feet
         terrain_height: Height of the terrain in feet
-        building_percentage: Percentage of terrain to be built (0-100)
         num_bedrooms: Number of bedrooms
         num_bathrooms: Number of bathrooms
         has_dining_room: Whether to include dining room
@@ -896,7 +906,6 @@ def create_dynamic_house_plan(
     specs = HouseSpecs(
         terrain_width=terrain_width,
         terrain_height=terrain_height,
-        building_percentage=building_percentage,
         num_bedrooms=num_bedrooms,
         num_bathrooms=num_bathrooms,
         has_dining_room=has_dining_room,
@@ -915,14 +924,13 @@ def save_dynamic_house_plan(
     filename: str,
     terrain_width: float,
     terrain_height: float,
-    building_percentage: float,
     num_bedrooms: int,
     num_bathrooms: int,
     **kwargs
 ):
     """Save dynamic house plan to file"""
     svg_content = create_dynamic_house_plan(
-        terrain_width, terrain_height, building_percentage,
+        terrain_width, terrain_height,
         num_bedrooms, num_bathrooms, **kwargs
     )
     
@@ -938,13 +946,12 @@ if __name__ == "__main__":
     print("Generating house plan...")
     save_dynamic_house_plan(
         filename="foo_house.svg",
-        terrain_width=200,  # 100 feet wide
-        terrain_height=350,  # 100 feet deep
-        building_percentage=100,  # 90% of terrain will be built
+        terrain_width=350,  # 100 feet wide
+        terrain_height=190,  # 100 feet deep
         num_bedrooms=3,
-        num_bathrooms=2,
+        num_bathrooms=3,
         has_dining_room=True,
-        has_garage=False,
+        has_garage=True,
         style="traditional"
     )
     
