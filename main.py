@@ -632,7 +632,8 @@ class AIHousePlanGenerator:
             "Traditional": "Tradicional",
             "Modern": "Moderno",
             "Compact": "Compacto",
-            "AI-Generated House Plan": "Planta de Casa Gerada por IA"
+            "AI-Generated House Plan": "Planta de Casa Gerada por IA",
+            "Front of House": "Frente da Casa"
         }
 
         # Calculate bounds
@@ -664,6 +665,8 @@ class AIHousePlanGenerator:
             .room-label { font-family: Arial; font-size: 12px; text-anchor: middle; fill: #333; }
             .specs { font-family: Arial; font-size: 10px; fill: #666; }
             .terrain { fill: none; stroke: #000; stroke-width: 2; stroke-dasharray: 10,5; }
+            .front-line { fill: none; stroke: #0066cc; stroke-width: 2; stroke-dasharray: 5,5; }
+            .legend { font-family: Arial; font-size: 10px; fill: #0066cc; }
         """
         
         # Add white background
@@ -823,6 +826,29 @@ class AIHousePlanGenerator:
                         'class': 'wall'
                     })
         
+        # Draw front line on the longer side
+        if terrain_width > terrain_height:
+            # If width is longer, draw vertical line
+            front_x1 = terrain_x
+            front_y1 = terrain_y
+            front_x2 = terrain_x
+            front_y2 = terrain_y + terrain_height
+        else:
+            # If height is longer, draw horizontal line
+            front_x1 = terrain_x
+            front_y1 = terrain_y
+            front_x2 = terrain_x + terrain_width
+            front_y2 = terrain_y
+        
+        # Draw front line with thicker blue line
+        ET.SubElement(svg, 'line', {
+            'x1': str(front_x1),
+            'y1': str(front_y1),
+            'x2': str(front_x2),
+            'y2': str(front_y2),
+            'style': 'stroke: #0066cc; stroke-width: 4;'
+        })
+        
         # Third pass: draw room labels
         for room in rooms:
             x = 50 + room.x * scale
@@ -871,6 +897,22 @@ class AIHousePlanGenerator:
             'style': 'font-family: Arial; font-size: 16px; font-weight: bold; text-anchor: middle; fill: #333;'
         })
         title.text = translations['AI-Generated House Plan']
+        
+        # Add legend for front line (moved to right)
+        legend_x = 800  # Moved to right side
+        legend_y = 30
+        ET.SubElement(svg, 'line', {
+            'x1': str(legend_x),
+            'y1': str(legend_y),
+            'x2': str(legend_x + 30),
+            'y2': str(legend_y),
+            'style': 'stroke: #0066cc; stroke-width: 4;'
+        })
+        ET.SubElement(svg, 'text', {
+            'x': str(legend_x + 35),
+            'y': str(legend_y + 4),
+            'class': 'legend'
+        }).text = translations['Front of House']
         
         # Print area statistics
         print("\nEstatísticas de Área:")
@@ -955,11 +997,11 @@ if __name__ == "__main__":
     print("Generating house plan...")
     save_dynamic_house_plan(
         filename="foo_house.svg",
-        terrain_width=200,  # 100 feet wide
-        terrain_height=120,  # 100 feet deep
+        terrain_width=300,  # 100 feet wide
+        terrain_height=260,  # 100 feet deep
         num_bedrooms=2,
-        num_bathrooms=1,
-        has_dining_room=True,
+        num_bathrooms=2,
+        has_dining_room=False,
         has_garage=True,
         style="traditional"
     )
