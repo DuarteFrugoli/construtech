@@ -955,9 +955,9 @@ class AIHousePlanGenerator:
         })
         title.text = translations['AI-Generated House Plan']
         
-        # Add legend for front line (moved to right)
-        legend_x = 1000  # Moved further right to match new SVG width
-        legend_y = 30
+        # Add legend for front line right below the specifications
+        legend_x = specs_x
+        legend_y = specs_y + len(specs_text) * 20 + 10  # Position below specs with some spacing
         ET.SubElement(svg, 'line', {
             'x1': str(legend_x),
             'y1': str(legend_y),
@@ -968,7 +968,7 @@ class AIHousePlanGenerator:
         ET.SubElement(svg, 'text', {
             'x': str(legend_x + 35),
             'y': str(legend_y + 4),
-            'class': 'legend'
+            'style': 'font-family: Arial; font-size: 12px; fill: #333;'  # Match specs style
         }).text = translations['Front of House']
         
         # Print area statistics
