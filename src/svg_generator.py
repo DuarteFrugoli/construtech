@@ -314,7 +314,25 @@ class SVGHousePlanGenerator:
         
         # Add legend for front line right below the specifications
         legend_x = specs_x
-        legend_y = specs_y + len(specs_text) * 20 + 10  # Position below specs with some spacing
+        legend_y = specs_y + len(specs_text) * 20 + 10
+
+        # Add Plano Diretor checklist
+        pd_text = [
+            f"Plano Diretor:",
+            f"• Taxa de Ocupação: {specs.TAXA_OCUPACAO*100}%",
+            f"• Recuo Frontal: {specs.RECUO_FRONTAL:.1f}m"
+        ]
+        
+        for i, text in enumerate(pd_text):
+            ET.SubElement(svg, 'text', {
+                'x': str(legend_x),
+                'y': str(legend_y + i * 20),
+                'style': 'font-family: Arial; font-size: 12px; fill: #333;'
+            }).text = text
+
+        # Update legend_y for front line
+        legend_y += len(pd_text) * 20 + 10
+
         ET.SubElement(svg, 'line', {
             'x1': str(legend_x),
             'y1': str(legend_y),
