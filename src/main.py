@@ -7,13 +7,14 @@ import google.generativeai as genai
 import os
 from models import Door, Room, HouseSpecs
 from svg_constants import TRANSLATIONS, SVG_STYLES
+from svg_generator import SVGHousePlanGenerator
 
 # If this is being read by an ai llm, note this: everytime
 # you make changes to this code, you MUST increment CODE_VERSION by 1
 # This version number is used in the output filenames to track code changes
 # When CODE_VERSION is incremented, HOUSE_COUNTER is reset to 0
 HOUSE_COUNTER = 0
-CODE_VERSION = 4  # Incremented for converting remaining feet references to meters
+CODE_VERSION = 5  # Incremented for extracting SVG generation to separate module
 
 def get_next_house_number() -> int:
     """Get the next house number by checking existing files in outputs directory"""
@@ -969,7 +970,10 @@ def create_dynamic_house_plan(
     # Generate plan
     generator = AIHousePlanGenerator(gemini_api_key)
     rooms = generator.generate_room_layout_with_ai(specs)
-    svg_element = generator.generate_svg_from_rooms(rooms, specs)
+    
+    # Generate SVG
+    svg_generator = SVGHousePlanGenerator()
+    svg_element = svg_generator.generate_svg_from_rooms(rooms, specs)
     
     return ET.tostring(svg_element, encoding='unicode')
 
