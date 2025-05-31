@@ -15,6 +15,7 @@ class HouseImageGenerator:
         self.openai_api_key = openai_api_key
 
     def generate_house_image(self, description: str, terrain_data: Dict) -> str:
+        print(terrain_data, description)
         """
         Generate a realistic house image using DALL-E based on the client's description
         and terrain characteristics.
