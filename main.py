@@ -667,11 +667,36 @@ class AIHousePlanGenerator:
         scale_y = 500 / max_y if max_y > 0 else 1
         scale = min(scale_x, scale_y)
         
-        # Create SVG with 10% larger dimensions
+        # Calculate terrain dimensions after scaling
+        terrain_width_scaled = specs.terrain_width * scale
+        terrain_height_scaled = specs.terrain_height * scale
+        
+        # Calculate specs width (approximate)
+        specs_width = 250  # Approximate width needed for specs
+        
+        # Define specs text
+        specs_text = [
+            f"{translations['Built Area']}: {specs.built_area:.0f} sq ft",
+            f"{translations['Total Area']}: {specs.total_area:.0f} sq ft",
+            f"{translations['Bedrooms']}: {specs.num_bedrooms}",
+            f"{translations['Bathrooms']}: {specs.num_bathrooms}",
+            f"{translations['Style']}: {translations.get(specs.style.title(), specs.style.title())}"
+        ]
+        
+        # Calculate total content width and height
+        content_width = terrain_width_scaled + specs_width + 50  # 50px gap between terrain and specs
+        content_height = max(terrain_height_scaled, len(specs_text) * 20 + 100)  # 100px for title and other elements
+        
+        # Add 10% padding on all sides
+        padding = 0.1
+        svg_width = content_width * (1 + 2 * padding)
+        svg_height = content_height * (1 + 2 * padding)
+        
+        # Create SVG with calculated dimensions
         svg = ET.Element('svg', {
-            'width': '1080',  # Increased from 880 to 1080
-            'height': '660',  # 600 * 1.1
-            'viewBox': '0 0 1080 660',  # Updated viewBox to match new width
+            'width': str(svg_width),
+            'height': str(svg_height),
+            'viewBox': f'0 0 {svg_width} {svg_height}',
             'xmlns': 'http://www.w3.org/2000/svg'
         })
         
@@ -695,22 +720,21 @@ class AIHousePlanGenerator:
         ET.SubElement(svg, 'rect', {
             'x': '0',
             'y': '0',
-            'width': '1080',  # Updated to match new width
-            'height': '660',
+            'width': str(svg_width),
+            'height': str(svg_height),
             'fill': 'white'
         })
         
-        # Draw terrain outline
-        terrain_x = 50
-        terrain_y = 50
-        terrain_width = specs.terrain_width * scale
-        terrain_height = specs.terrain_height * scale
+        # Calculate starting positions with padding
+        terrain_x = content_width * padding
+        terrain_y = content_height * padding
         
+        # Draw terrain outline
         ET.SubElement(svg, 'rect', {
             'x': str(terrain_x),
             'y': str(terrain_y),
-            'width': str(terrain_width),
-            'height': str(terrain_height),
+            'width': str(terrain_width_scaled),
+            'height': str(terrain_height_scaled),
             'class': 'terrain'
         })
         
@@ -720,8 +744,9 @@ class AIHousePlanGenerator:
         
         # First pass: draw all room rectangles
         for room in rooms:
-            x = 50 + room.x * scale
-            y = 50 + room.y * scale
+            # Calculate room position relative to terrain
+            x = terrain_x + (room.x * scale)
+            y = terrain_y + (room.y * scale)
             width = room.width * scale
             height = room.height * scale
             
@@ -741,8 +766,8 @@ class AIHousePlanGenerator:
             
             # Draw walls with gaps for doors
             for door in room.doors:
-                door_x = 50 + door.x * scale
-                door_y = 50 + door.y * scale
+                door_x = terrain_x + (door.x * scale)
+                door_y = terrain_y + (door.y * scale)
                 door_width = door.width * scale
                 door_height = door.height * scale
                 
@@ -782,8 +807,8 @@ class AIHousePlanGenerator:
         # Second pass: draw all doors
         for room in rooms:
             for door in room.doors:
-                door_x = 50 + door.x * scale
-                door_y = 50 + door.y * scale
+                door_x = terrain_x + (door.x * scale)
+                door_y = terrain_y + (door.y * scale)
                 door_width = door.width * scale
                 door_height = door.height * scale
                 
@@ -849,17 +874,17 @@ class AIHousePlanGenerator:
                     })
         
         # Draw front line on the longer side
-        if terrain_width > terrain_height:
+        if terrain_width_scaled > terrain_height_scaled:
             # If width is longer, draw vertical line
             front_x1 = terrain_x
             front_y1 = terrain_y
             front_x2 = terrain_x
-            front_y2 = terrain_y + terrain_height
+            front_y2 = terrain_y + terrain_height_scaled
         else:
             # If height is longer, draw horizontal line
             front_x1 = terrain_x
             front_y1 = terrain_y
-            front_x2 = terrain_x + terrain_width
+            front_x2 = terrain_x + terrain_width_scaled
             front_y2 = terrain_y
         
         # Draw front line with thicker blue line
@@ -872,14 +897,14 @@ class AIHousePlanGenerator:
         })
         
         # Draw front setback line and label
-        if terrain_width > terrain_height:
+        if terrain_width_scaled > terrain_height_scaled:
             # If width is longer, draw vertical setback line
             setback_x = terrain_x + specs.RECUO_FRONTAL * scale
             ET.SubElement(svg, 'line', {
                 'x1': str(setback_x),
                 'y1': str(terrain_y),
                 'x2': str(setback_x),
-                'y2': str(terrain_y + terrain_height),
+                'y2': str(terrain_y + terrain_height_scaled),
                 'style': 'stroke: #666; stroke-width: 1; stroke-dasharray: 5,5;'
             })
             # Add setback label
@@ -894,7 +919,7 @@ class AIHousePlanGenerator:
             ET.SubElement(svg, 'line', {
                 'x1': str(terrain_x),
                 'y1': str(setback_y),
-                'x2': str(terrain_x + terrain_width),
+                'x2': str(terrain_x + terrain_width_scaled),
                 'y2': str(setback_y),
                 'style': 'stroke: #666; stroke-width: 1; stroke-dasharray: 5,5;'
             })
@@ -907,8 +932,8 @@ class AIHousePlanGenerator:
         
         # Third pass: draw room labels
         for room in rooms:
-            x = 50 + room.x * scale
-            y = 50 + room.y * scale
+            x = terrain_x + (room.x * scale)
+            y = terrain_y + (room.y * scale)
             width = room.width * scale
             height = room.height * scale
             
@@ -930,15 +955,8 @@ class AIHousePlanGenerator:
             }).text = dim_text
         
         # Add house specifications
-        specs_x = terrain_x + terrain_width + 50  # Move specs to the right of terrain
-        specs_y = 50  # Align with top of terrain
-        specs_text = [
-            f"{translations['Built Area']}: {specs.built_area:.0f} sq ft",
-            f"{translations['Total Area']}: {specs.total_area:.0f} sq ft",
-            f"{translations['Bedrooms']}: {specs.num_bedrooms}",
-            f"{translations['Bathrooms']}: {specs.num_bathrooms}",
-            f"{translations['Style']}: {translations.get(specs.style.title(), specs.style.title())}"
-        ]
+        specs_x = terrain_x + terrain_width_scaled + 50  # 50px gap after terrain
+        specs_y = terrain_y  # Align with top of terrain
         
         for i, text in enumerate(specs_text):
             ET.SubElement(svg, 'text', {
@@ -1054,8 +1072,8 @@ if __name__ == "__main__":
     print("Generating house plan...")
     save_dynamic_house_plan(
         filename="foo_house.svg",
-        terrain_width=200,  # 100 feet wide
-        terrain_height=370,  # 100 feet deep
+        terrain_width=370,  # 100 feet wide
+        terrain_height=200,  # 100 feet deep
         num_bedrooms=3,
         num_bathrooms=2,
         has_dining_room=True,
