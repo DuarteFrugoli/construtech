@@ -669,9 +669,9 @@ class AIHousePlanGenerator:
         
         # Create SVG with 10% larger dimensions
         svg = ET.Element('svg', {
-            'width': '880',  # 800 * 1.1
+            'width': '1080',  # Increased from 880 to 1080
             'height': '660',  # 600 * 1.1
-            'viewBox': '0 0 880 660',
+            'viewBox': '0 0 1080 660',  # Updated viewBox to match new width
             'xmlns': 'http://www.w3.org/2000/svg'
         })
         
@@ -695,7 +695,7 @@ class AIHousePlanGenerator:
         ET.SubElement(svg, 'rect', {
             'x': '0',
             'y': '0',
-            'width': '880',
+            'width': '1080',  # Updated to match new width
             'height': '660',
             'fill': 'white'
         })
@@ -930,7 +930,8 @@ class AIHousePlanGenerator:
             }).text = dim_text
         
         # Add house specifications
-        specs_y = 20
+        specs_x = terrain_x + terrain_width + 50  # Move specs to the right of terrain
+        specs_y = 50  # Align with top of terrain
         specs_text = [
             f"{translations['Built Area']}: {specs.built_area:.0f} sq ft",
             f"{translations['Total Area']}: {specs.total_area:.0f} sq ft",
@@ -941,9 +942,9 @@ class AIHousePlanGenerator:
         
         for i, text in enumerate(specs_text):
             ET.SubElement(svg, 'text', {
-                'x': '10',
-                'y': str(specs_y + i * 12),
-                'class': 'specs'
+                'x': str(specs_x),
+                'y': str(specs_y + i * 20),  # Increased spacing between lines
+                'style': 'font-family: Arial; font-size: 12px; fill: #333;'  # Made text slightly larger and darker
             }).text = text
         
         # Title
@@ -955,7 +956,7 @@ class AIHousePlanGenerator:
         title.text = translations['AI-Generated House Plan']
         
         # Add legend for front line (moved to right)
-        legend_x = 800  # Moved to right side
+        legend_x = 1000  # Moved further right to match new SVG width
         legend_y = 30
         ET.SubElement(svg, 'line', {
             'x1': str(legend_x),
@@ -1053,11 +1054,11 @@ if __name__ == "__main__":
     print("Generating house plan...")
     save_dynamic_house_plan(
         filename="foo_house.svg",
-        terrain_width=470,  # 100 feet wide
-        terrain_height=300,  # 100 feet deep
-        num_bedrooms=4,
+        terrain_width=200,  # 100 feet wide
+        terrain_height=370,  # 100 feet deep
+        num_bedrooms=3,
         num_bathrooms=2,
-        has_dining_room=False,
+        has_dining_room=True,
         has_garage=True,
         style="traditional"
     )
