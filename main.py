@@ -644,11 +644,11 @@ class AIHousePlanGenerator:
         scale_y = 500 / max_y if max_y > 0 else 1
         scale = min(scale_x, scale_y)
         
-        # Create SVG
+        # Create SVG with 10% larger dimensions
         svg = ET.Element('svg', {
-            'width': '800',
-            'height': '600',
-            'viewBox': '0 0 800 600',
+            'width': '880',  # 800 * 1.1
+            'height': '660',  # 600 * 1.1
+            'viewBox': '0 0 880 660',
             'xmlns': 'http://www.w3.org/2000/svg'
         })
         
@@ -663,8 +663,17 @@ class AIHousePlanGenerator:
             .window { fill: #87CEEB; stroke: #333; stroke-width: 1; }
             .room-label { font-family: Arial; font-size: 12px; text-anchor: middle; fill: #333; }
             .specs { font-family: Arial; font-size: 10px; fill: #666; }
-            .terrain { fill: none; stroke: #fff; stroke-width: 2; stroke-dasharray: 10,5; }
+            .terrain { fill: none; stroke: #000; stroke-width: 2; stroke-dasharray: 10,5; }
         """
+        
+        # Add white background
+        ET.SubElement(svg, 'rect', {
+            'x': '0',
+            'y': '0',
+            'width': '880',
+            'height': '660',
+            'fill': 'white'
+        })
         
         # Draw terrain outline
         terrain_x = 50
@@ -946,10 +955,10 @@ if __name__ == "__main__":
     print("Generating house plan...")
     save_dynamic_house_plan(
         filename="foo_house.svg",
-        terrain_width=350,  # 100 feet wide
-        terrain_height=190,  # 100 feet deep
-        num_bedrooms=3,
-        num_bathrooms=3,
+        terrain_width=200,  # 100 feet wide
+        terrain_height=120,  # 100 feet deep
+        num_bedrooms=2,
+        num_bathrooms=1,
         has_dining_room=True,
         has_garage=True,
         style="traditional"
