@@ -79,8 +79,8 @@ def analisar_terreno_por_coordenadas(
 @app.post("/gerar-imagem-casa")
 def gerar_imagem_casa(
         descricao: str = Query(...),
-        latitude: float = Query(...),
-        longitude: float = Query(...)
+        lat: float = Query(...),
+        lng: float = Query(...)
 ):
     """
     Gera uma imagem simulada da casa com base na descrição do cliente e inclinação do terreno usando OpenAI DALL·E.
