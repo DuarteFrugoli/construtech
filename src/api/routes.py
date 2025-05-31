@@ -2,6 +2,7 @@
 API routes for house plan generation.
 """
 from fastapi import FastAPI, HTTPException, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
 import xml.etree.ElementTree as ET
@@ -14,6 +15,15 @@ app = FastAPI(
     title="House Plan Generator API",
     description="API for generating house plans based on specifications",
     version="1.0.0"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # Frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
 )
 
 class HousePlanRequest(BaseModel):

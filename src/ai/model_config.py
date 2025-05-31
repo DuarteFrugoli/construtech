@@ -5,7 +5,7 @@ import os
 from typing import Optional
 import google.generativeai as genai
 
-def initialize_model(gemini_api_key: Optional[str] = None) -> tuple[bool, Optional[genai.GenerativeModel]]:
+def initialize_model(gemini_api_key: Optional[str] = "AIzaSyCxc--_uw0L-wv9E7vCCPdqLPwHAaNyqus") -> tuple[bool, Optional[genai.GenerativeModel]]:
     """
     Initialize the Gemini AI model
     
@@ -16,6 +16,7 @@ def initialize_model(gemini_api_key: Optional[str] = None) -> tuple[bool, Option
         Tuple of (success: bool, model: Optional[GenerativeModel])
     """
     try:
+        gemini_api_key = "AIzaSyCxc--_uw0L-wv9E7vCCPdqLPwHAaNyqus"
         if gemini_api_key:
             genai.configure(api_key=gemini_api_key)
         else:
