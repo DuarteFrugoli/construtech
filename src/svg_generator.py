@@ -219,12 +219,33 @@ class SVGHousePlanGenerator:
             front_y1 = terrain_y
             front_x2 = terrain_x
             front_y2 = terrain_y + terrain_height_scaled
+            
+            # Draw back line (opposite to front)
+            back_x1 = terrain_x + terrain_width_scaled
+            back_y1 = terrain_y
+            back_x2 = terrain_x + terrain_width_scaled
+            back_y2 = terrain_y + terrain_height_scaled
         else:
             # If height is longer, draw horizontal line
             front_x1 = terrain_x
             front_y1 = terrain_y
             front_x2 = terrain_x + terrain_width_scaled
             front_y2 = terrain_y
+            
+            # Draw back line (opposite to front)
+            back_x1 = terrain_x
+            back_y1 = terrain_y + terrain_height_scaled
+            back_x2 = terrain_x + terrain_width_scaled
+            back_y2 = terrain_y + terrain_height_scaled
+        
+        # Draw back line with thicker green line (draw first so it's below other elements)
+        ET.SubElement(svg, 'line', {
+            'x1': str(back_x1),
+            'y1': str(back_y1),
+            'x2': str(back_x2),
+            'y2': str(back_y2),
+            'style': 'stroke: #00cc00; stroke-width: 4;'
+        })
         
         # Draw front line with thicker blue line
         ET.SubElement(svg, 'line', {
