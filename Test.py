@@ -1,7 +1,7 @@
-import requests
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Tuple
+import requests
 import logging
 import math
 from geopy.distance import geodesic
@@ -12,30 +12,21 @@ OPENAI_API_KEY = "sk-proj-cezBGv942O3RMTx6wnsR1x8ZQaIEdwy6IeldWZ_K78kA_giK2vmdVy
 
 # Logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)  # <-- Corrigido
+logger = logging.getLogger(__name__)
 
 # App FastAPI
 app = FastAPI()
 
-# CORS Middleware
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permitir todas as origens
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # --- FUNÇÕES AUXILIARES ---
-
-def obter_coordenadas(endereco: str) -> Tuple[float, float]:
-    url = "https://maps.googleapis.com/maps/api/geocode/json"
-    params = {"address": endereco, "key": GOOGLE_API_KEY}
-    resposta = requests.get(url, params=params).json()
-    if resposta["status"] != "OK":
-        raise HTTPException(status_code=400, detail=f"Erro ao geocodificar: {resposta['status']}")
-    localizacao = resposta["results"][0]["geometry"]["location"]
-    return localizacao["lat"], localizacao["lng"]
 
 def obter_elevacoes(pontos: List[Tuple[float, float]]) -> List[float]:
     url = "https://maps.googleapis.com/maps/api/elevation/json"
@@ -48,10 +39,14 @@ def obter_elevacoes(pontos: List[Tuple[float, float]]) -> List[float]:
 # --- ENDPOINTS ---
 
 @app.get("/elevacao-terreno")
-def analisar_terreno(endereco: str = Query(..., description="Endereço completo da propriedade")):
+def analisar_terreno_por_coordenadas(
+        latitude: float = Query(..., description="Latitude da propriedade"),
+        longitude: float = Query(..., description="Longitude da propriedade")
+):
     try:
         PRECISAO = 0.0005
-        lat, lng = obter_coordenadas(endereco)
+        lat, lng = latitude, longitude
+
         pontos = [
             (lat, lng), (lat + PRECISAO, lng), (lat - PRECISAO, lng),
             (lat, lng + PRECISAO), (lat, lng - PRECISAO)
@@ -76,19 +71,22 @@ def analisar_terreno(endereco: str = Query(..., description="Endereço completo 
             "inclinacao_percentual": round(inclinacao_percentual, 2),
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Erro: {str(e)}")
         raise HTTPException(status_code=500, detail="Erro ao analisar terreno")
 
+
 @app.post("/gerar-imagem-casa")
-def gerar_imagem_casa(descricao: str = Query(...), endereco: str = Query(...)):
+def gerar_imagem_casa(
+        descricao: str = Query(...),
+        latitude: float = Query(...),
+        longitude: float = Query(...)
+):
     """
     Gera uma imagem simulada da casa com base na descrição do cliente e inclinação do terreno usando OpenAI DALL·E.
     """
     try:
-        resultado = analisar_terreno(endereco)
+        resultado = analisar_terreno_por_coordenadas(latitude, longitude)
         inclinacao = resultado['inclinacao_percentual']
         graus = resultado['inclinacao_graus']
         diferenca = resultado['diferenca_altura']
@@ -129,3 +127,4 @@ def gerar_imagem_casa(descricao: str = Query(...), endereco: str = Query(...)):
     except Exception as e:
         logger.error(f"Erro ao gerar imagem com DALL·E: {str(e)}")
         raise HTTPException(status_code=500, detail="Erro ao gerar imagem com OpenAI")
+
