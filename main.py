@@ -871,6 +871,40 @@ class AIHousePlanGenerator:
             'style': 'stroke: #0066cc; stroke-width: 4;'
         })
         
+        # Draw front setback line and label
+        if terrain_width > terrain_height:
+            # If width is longer, draw vertical setback line
+            setback_x = terrain_x + specs.RECUO_FRONTAL * scale
+            ET.SubElement(svg, 'line', {
+                'x1': str(setback_x),
+                'y1': str(terrain_y),
+                'x2': str(setback_x),
+                'y2': str(terrain_y + terrain_height),
+                'style': 'stroke: #666; stroke-width: 1; stroke-dasharray: 5,5;'
+            })
+            # Add setback label
+            ET.SubElement(svg, 'text', {
+                'x': str(setback_x + 5),
+                'y': str(terrain_y + 20),
+                'style': 'font-family: Arial; font-size: 10px; fill: #666;'
+            }).text = f"Recuo: {specs.RECUO_FRONTAL:.1f}'"
+        else:
+            # If height is longer, draw horizontal setback line
+            setback_y = terrain_y + specs.RECUO_FRONTAL * scale
+            ET.SubElement(svg, 'line', {
+                'x1': str(terrain_x),
+                'y1': str(setback_y),
+                'x2': str(terrain_x + terrain_width),
+                'y2': str(setback_y),
+                'style': 'stroke: #666; stroke-width: 1; stroke-dasharray: 5,5;'
+            })
+            # Add setback label
+            ET.SubElement(svg, 'text', {
+                'x': str(terrain_x + 5),
+                'y': str(setback_y - 5),
+                'style': 'font-family: Arial; font-size: 10px; fill: #666;'
+            }).text = f"Recuo: {specs.RECUO_FRONTAL:.1f}'"
+        
         # Third pass: draw room labels
         for room in rooms:
             x = 50 + room.x * scale
