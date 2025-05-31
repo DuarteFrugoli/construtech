@@ -12,7 +12,7 @@ from svg_constants import TRANSLATIONS, SVG_STYLES
 # you make changes to this code, you MUST increment CODE_VERSION by 1
 # This version number is used in the output filenames to track code changes
 HOUSE_COUNTER = 0
-CODE_VERSION = 1
+CODE_VERSION = 2  # Incremented for unit conversion to meters
 
 def get_next_house_number() -> int:
     """Get the next house number by checking existing files in outputs directory"""
@@ -1001,9 +1001,9 @@ def save_dynamic_house_plan(
 if __name__ == "__main__":
     print("Generating house plan...")
     save_dynamic_house_plan(
-        terrain_width=320,  # 100 feet wide
-        terrain_height=300,  # 100 feet deep
-        num_bedrooms=2,
+        terrain_width=200,  # 320 meters wide
+        terrain_height=160,  # 300 meters deep
+        num_bedrooms=3,
         num_bathrooms=2,
         has_dining_room=False,
         has_garage=True,
