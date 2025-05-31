@@ -57,6 +57,9 @@ class HouseSpecs:
     # Taxa de Ocupação fixa conforme Plano Diretor
     TAXA_OCUPACAO: float = 0.70  # 70% fixo
     
+    # Recuo frontal conforme Plano Diretor
+    RECUO_FRONTAL: float = 16.4  # 5 metros em pés
+    
     @property
     def total_area(self) -> float:
         """Calculate total terrain area in sq ft"""
@@ -236,6 +239,7 @@ class AIHousePlanGenerator:
         # Seção especial de prints do Plano Diretor
         print("\n=== CHECKLIST PLANO DIRETOR ===")
         print("✓ Taxa de Ocupação (TO) fixa em 70% conforme Plano Diretor")
+        print("✓ Recuo frontal mínimo de 5 metros (16.4 pés) conforme Plano Diretor")
         print("=== FIM DO CHECKLIST ===\n")
         
         rooms = []
@@ -312,6 +316,7 @@ class AIHousePlanGenerator:
         # Seção especial de prints do Plano Diretor
         print("\n=== CHECKLIST PLANO DIRETOR ===")
         print("✓ Taxa de Ocupação (TO) fixa em 70% conforme Plano Diretor")
+        print("✓ Recuo frontal mínimo de 5 metros (16.4 pés) conforme Plano Diretor")
         print("=== FIM DO CHECKLIST ===\n")
         
         rooms = []
@@ -422,10 +427,17 @@ class AIHousePlanGenerator:
         # Sort rooms by area (largest first)
         rooms.sort(key=lambda r: r.area, reverse=True)
         
-        # Initialize the first room at origin
+        # Initialize the first room at origin, respecting front setback
         if rooms:
-            rooms[0].x = 0
-            rooms[0].y = 0
+            # Determine if front is on width or height side
+            if specs.terrain_width > specs.terrain_height:
+                # Front is on width side (vertical line)
+                rooms[0].x = specs.RECUO_FRONTAL  # Add front setback
+                rooms[0].y = 0
+            else:
+                # Front is on height side (horizontal line)
+                rooms[0].x = 0
+                rooms[0].y = specs.RECUO_FRONTAL  # Add front setback
         
         # Keep track of placed rectangles
         placed_rectangles = []
@@ -443,6 +455,16 @@ class AIHousePlanGenerator:
             # Check if room fits within terrain bounds
             if x < 0 or y < 0 or x + width > specs.terrain_width or y + height > specs.terrain_height:
                 return False
+            
+            # Check for front setback
+            if specs.terrain_width > specs.terrain_height:
+                # Front is on width side
+                if x < specs.RECUO_FRONTAL:
+                    return False
+            else:
+                # Front is on height side
+                if y < specs.RECUO_FRONTAL:
+                    return False
             
             # Check for overlaps with existing rooms
             for rect in placed_rectangles:
@@ -997,9 +1019,9 @@ if __name__ == "__main__":
     print("Generating house plan...")
     save_dynamic_house_plan(
         filename="foo_house.svg",
-        terrain_width=300,  # 100 feet wide
-        terrain_height=260,  # 100 feet deep
-        num_bedrooms=2,
+        terrain_width=470,  # 100 feet wide
+        terrain_height=300,  # 100 feet deep
+        num_bedrooms=4,
         num_bathrooms=2,
         has_dining_room=False,
         has_garage=True,
