@@ -354,6 +354,24 @@ class SVGHousePlanGenerator:
         # Update legend_y for front line
         legend_y += len(pd_text) * 20 + 10
 
+        # Add back line legend
+        ET.SubElement(svg, 'line', {
+            'x1': str(legend_x),
+            'y1': str(legend_y),
+            'x2': str(legend_x + 30),
+            'y2': str(legend_y),
+            'style': 'stroke: #00cc00; stroke-width: 4;'
+        })
+        ET.SubElement(svg, 'text', {
+            'x': str(legend_x + 35),
+            'y': str(legend_y + 4),
+            'style': 'font-family: Arial; font-size: 12px; fill: #333;'  # Match specs style
+        }).text = TRANSLATIONS['Back of House']
+
+        # Update legend_y for front line
+        legend_y += 20
+
+        # Add front line legend
         ET.SubElement(svg, 'line', {
             'x1': str(legend_x),
             'y1': str(legend_y),

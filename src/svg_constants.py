@@ -20,7 +20,8 @@ TRANSLATIONS = {
     "Modern": "Moderno",
     "Compact": "Compacto",
     "AI-Generated House Plan": "Planta de Casa Gerada por IA",
-    "Front of House": "Frente da Casa"
+    "Front of House": "Frente da Casa",
+    "Back of House": "Fundo da casa"
 }
 
 # SVG style definitions
