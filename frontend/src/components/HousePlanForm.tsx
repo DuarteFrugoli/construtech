@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Modal from './Modal';
+import LocationPicker from './LocationPicker';
 
 interface HousePlanFormData {
   terrain_width: number;
@@ -55,6 +56,13 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+    }));
+  };
+
+  const handleLocationSelect = (address: string) => {
+    setFormData(prev => ({
+      ...prev,
+      address
     }));
   };
 
@@ -205,14 +213,15 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
 
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">Endereço do Terreno</label>
-            <input
-              type="text"
-              name="address"
-              value={formData.address}
-              onChange={handleInputChange}
-              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors px-4 py-3"
-              placeholder="Digite o endereço do terreno"
-            />
+            <div className="text-sm text-gray-500 mb-2">
+              Clique no mapa para selecionar a localização
+            </div>
+            <LocationPicker onLocationSelect={handleLocationSelect} />
+            {formData.address && (
+              <div className="mt-2 text-sm text-gray-600">
+                Localização selecionada: {formData.address}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
