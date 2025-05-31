@@ -13,6 +13,7 @@ from svg_constants import TRANSLATIONS, SVG_STYLES
 from svg_generator import SVGHousePlanGenerator
 from rule_based_layout import RuleBasedLayoutGenerator
 from ai_response_converter import AIResponseConverter
+from utils.file_manager import get_output_filename
 
 # If this is being read by an ai llm, note this: everytime
 # you make changes to this code, you MUST increment CODE_VERSION by 1
@@ -585,10 +586,7 @@ def save_dynamic_house_plan(
     **kwargs
 ):
     """Save dynamic house plan to file"""
-    if filename is None:
-        # Generate filename with code version and house number
-        house_number = get_next_house_number()
-        filename = os.path.join('src', 'outputs', f'house_{CODE_VERSION}_{house_number}.svg')
+    filename = get_output_filename(filename)
     
     svg_content = create_dynamic_house_plan(
         terrain_width, terrain_height,
