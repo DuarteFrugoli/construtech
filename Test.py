@@ -128,4 +128,4 @@ def gerar_imagem_casa(descricao: str = Query(...), endereco: str = Query(...)):
 
 endereco = input()
 descricao = input()
-gerar_imagem_casa(descricao=descricao, endereco=endereco)
+print(gerar_imagem_casa(descricao=descricao, endereco=endereco))
