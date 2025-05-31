@@ -11,8 +11,9 @@ from svg_constants import TRANSLATIONS, SVG_STYLES
 # If this is being read by an ai llm, note this: everytime
 # you make changes to this code, you MUST increment CODE_VERSION by 1
 # This version number is used in the output filenames to track code changes
+# When CODE_VERSION is incremented, HOUSE_COUNTER is reset to 0
 HOUSE_COUNTER = 0
-CODE_VERSION = 2  # Incremented for unit conversion to meters
+CODE_VERSION = 4  # Incremented for converting remaining feet references to meters
 
 def get_next_house_number() -> int:
     """Get the next house number by checking existing files in outputs directory"""
@@ -23,13 +24,13 @@ def get_next_house_number() -> int:
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
-    # Find the highest existing house number
-    existing_files = [f for f in os.listdir(output_dir) if f.startswith('house_') and f.endswith('.svg')]
+    # Find the highest existing house number for current code version
+    existing_files = [f for f in os.listdir(output_dir) if f.startswith(f'house_{CODE_VERSION}_') and f.endswith('.svg')]
     if existing_files:
-        numbers = [int(f.replace('house_', '').replace('.svg', '').split('_')[0]) for f in existing_files]
+        numbers = [int(f.replace(f'house_{CODE_VERSION}_', '').replace('.svg', '')) for f in existing_files]
         HOUSE_COUNTER = max(numbers) + 1
     else:
-        HOUSE_COUNTER = 1
+        HOUSE_COUNTER = 0  # Reset counter for new code version
     
     return HOUSE_COUNTER
 
@@ -83,16 +84,16 @@ class AIHousePlanGenerator:
         try:
             prompt = f"""
             Design an optimal floor plan layout for a house with these specifications:
-            - Terrain dimensions: {specs.terrain_width}ft × {specs.terrain_height}ft
-            - Taxa de Ocupação: {specs.TAXA_OCUPACAO*100}% (target area: {specs.built_area:.0f} sq ft)
+            - Terrain dimensions: {specs.terrain_width}m × {specs.terrain_height}m
+            - Taxa de Ocupação: {specs.TAXA_OCUPACAO*100}% (target area: {specs.built_area:.0f} m²)
             - Bedrooms: {specs.num_bedrooms}
             - Bathrooms: {specs.num_bathrooms}
             - Style: {specs.style}
             
             CRITICAL REQUIREMENTS (in order of priority):
             1. NO ROOM OVERLAPPING - This is an absolute requirement. Rooms must be placed adjacent to each other without any overlap.
-            2. Rooms must fit within the terrain dimensions ({specs.terrain_width}ft × {specs.terrain_height}ft)
-            3. Total area should be between {specs.built_area * 0.85:.0f} and {specs.built_area * 1.05:.0f} sq ft (85% to 105% of target)
+            2. Rooms must fit within the terrain dimensions ({specs.terrain_width}m × {specs.terrain_height}m)
+            3. Total area should be between {specs.built_area * 0.85:.0f} and {specs.built_area * 1.05:.0f} m² (85% to 105% of target)
             
             ROOM REQUIREMENTS:
             - ONLY include the following room types:
@@ -106,14 +107,14 @@ class AIHousePlanGenerator:
             - Each room type should be included exactly as specified
             
             REALISTIC ROOM SIZE GUIDELINES:
-            - Minimum room width: 8 feet (standard door width)
+            - Minimum room width: 2.5 meters (standard door width)
             - Maximum aspect ratio: 2:1 (length:width)
             - Room size ranges:
-              * Bedrooms: 120-250 sq ft (e.g., 12x10 to 15x16)
-              * Bathrooms: 40-100 sq ft (e.g., 5x8 to 10x10)
-              * Living Room: 200-400 sq ft (e.g., 15x15 to 20x20)
-              * Kitchen: 100-200 sq ft (e.g., 10x10 to 15x15)
-              * Dining Room: 120-250 sq ft (e.g., 12x10 to 15x16)
+              * Bedrooms: 12-25 m² (e.g., 3.5x3.5 to 4x6)
+              * Bathrooms: 4-10 m² (e.g., 1.5x2.5 to 3x3.5)
+              * Living Room: 20-40 m² (e.g., 4.5x4.5 to 6x6.5)
+              * Kitchen: 10-20 m² (e.g., 3x3.5 to 4.5x4.5)
+              * Dining Room: 12-25 m² (e.g., 3.5x3.5 to 4x6)
             
             ROOM RELATIONSHIPS:
             - Bedrooms should be near bathrooms
@@ -614,8 +615,8 @@ class AIHousePlanGenerator:
         
         # Define specs text
         specs_text = [
-            f"{TRANSLATIONS['Built Area']}: {specs.built_area:.0f} sq ft",
-            f"{TRANSLATIONS['Total Area']}: {specs.total_area:.0f} sq ft",
+            f"{TRANSLATIONS['Built Area']}: {specs.built_area:.0f} m²",
+            f"{TRANSLATIONS['Total Area']}: {specs.total_area:.0f} m²",
             f"{TRANSLATIONS['Bedrooms']}: {specs.num_bedrooms}",
             f"{TRANSLATIONS['Bathrooms']}: {specs.num_bathrooms}",
             f"{TRANSLATIONS['Style']}: {TRANSLATIONS.get(specs.style.title(), specs.style.title())}"
@@ -917,13 +918,13 @@ class AIHousePlanGenerator:
         
         # Print area statistics
         print("\nEstatísticas de Área:")
-        print(f"Área Total do Terreno: {specs.total_area:.0f} sq ft")
-        print(f"Área Total Construída: {total_constructed_area:.0f} sq ft")
+        print(f"Área Total do Terreno: {specs.total_area:.0f} m²")
+        print(f"Área Total Construída: {total_constructed_area:.0f} m²")
         print(f"Porcentagem do Terreno Utilizada: {(total_constructed_area/specs.total_area)*100:.1f}%")
         print("\nÁreas dos Cômodos:")
         for room_name, area in room_areas:
             translated_name = TRANSLATIONS.get(room_name, room_name)
-            print(f"{translated_name}: {area:.0f} sq ft ({(area/total_constructed_area)*100:.1f}% da área construída)")
+            print(f"{translated_name}: {area:.0f} m² ({(area/total_constructed_area)*100:.1f}% da área construída)")
         
         return svg
 
@@ -941,8 +942,8 @@ def create_dynamic_house_plan(
     Create a dynamic house plan based on user specifications
     
     Args:
-        terrain_width: Width of the terrain in feet
-        terrain_height: Height of the terrain in feet
+        terrain_width: Width of the terrain in meters
+        terrain_height: Height of the terrain in meters
         num_bedrooms: Number of bedrooms
         num_bathrooms: Number of bathrooms
         has_dining_room: Whether to include dining room
@@ -982,9 +983,9 @@ def save_dynamic_house_plan(
 ):
     """Save dynamic house plan to file"""
     if filename is None:
-        # Generate filename with next house number and code version
+        # Generate filename with code version and house number
         house_number = get_next_house_number()
-        filename = os.path.join('src', 'outputs', f'house_{house_number}_{CODE_VERSION}.svg')
+        filename = os.path.join('src', 'outputs', f'house_{CODE_VERSION}_{house_number}.svg')
     
     svg_content = create_dynamic_house_plan(
         terrain_width, terrain_height,
@@ -1001,8 +1002,8 @@ def save_dynamic_house_plan(
 if __name__ == "__main__":
     print("Generating house plan...")
     save_dynamic_house_plan(
-        terrain_width=200,  # 320 meters wide
-        terrain_height=160,  # 300 meters deep
+        terrain_width=200,  # 200 meters wide
+        terrain_height=160,  # 160 meters deep
         num_bedrooms=3,
         num_bathrooms=2,
         has_dining_room=False,
