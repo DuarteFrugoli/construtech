@@ -1,6 +1,6 @@
 import math
 from typing import List, Dict, Tuple
-from models import Room, HouseSpecs, Door
+from core.models import Room, HouseSpecs, Door
 
 class RuleBasedLayoutGenerator:
     def __init__(self):

@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Tuple
-from models import Room, HouseSpecs
+from core.models import Room, HouseSpecs
 from svg_constants import TRANSLATIONS, SVG_STYLES
 
 class SVGHousePlanGenerator:

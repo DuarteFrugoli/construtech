@@ -1,7 +1,7 @@
 import json
 import math
-from typing import Dict, List
-from models import Room, HouseSpecs
+from typing import Dict, List, Tuple
+from core.models import Room, HouseSpecs
 from rule_based_layout import RuleBasedLayoutGenerator
 
 class AIResponseConverter:
