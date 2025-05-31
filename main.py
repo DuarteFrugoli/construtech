@@ -6,6 +6,7 @@ from typing import Dict, List, Tuple, Optional
 import google.generativeai as genai
 import os
 from models import Door, Room, HouseSpecs
+from svg_constants import TRANSLATIONS, SVG_STYLES
 
 class AIHousePlanGenerator:
     def __init__(self, gemini_api_key: Optional[str] = None):
@@ -570,31 +571,6 @@ class AIHousePlanGenerator:
     
     def generate_svg_from_rooms(self, rooms: List[Room], specs: HouseSpecs) -> ET.Element:
         """Generate SVG from positioned rooms"""
-        # Translation dictionary
-        translations = {
-            "Living Room": "Sala de Estar",
-            "Master Bedroom": "Quarto Principal",
-            "Bedroom": "Quarto",
-            "Bedroom 2": "Quarto 2",
-            "Bedroom 3": "Quarto 3",
-            "Bathroom": "Banheiro",
-            "Master Bathroom": "Banheiro Principal",
-            "Bathroom 2": "Banheiro 2",
-            "Kitchen": "Cozinha",
-            "Dining Room": "Sala de Jantar",
-            "Garage": "Garagem",
-            "Built Area": "Área Construída",
-            "Total Area": "Área Total",
-            "Bedrooms": "Quartos",
-            "Bathrooms": "Banheiros",
-            "Style": "Estilo",
-            "Traditional": "Tradicional",
-            "Modern": "Moderno",
-            "Compact": "Compacto",
-            "AI-Generated House Plan": "Planta de Casa Gerada por IA",
-            "Front of House": "Frente da Casa"
-        }
-
         # Calculate bounds
         max_x = max(room.x + room.width for room in rooms) if rooms else 100
         max_y = max(room.y + room.height for room in rooms) if rooms else 100
@@ -613,11 +589,11 @@ class AIHousePlanGenerator:
         
         # Define specs text
         specs_text = [
-            f"{translations['Built Area']}: {specs.built_area:.0f} sq ft",
-            f"{translations['Total Area']}: {specs.total_area:.0f} sq ft",
-            f"{translations['Bedrooms']}: {specs.num_bedrooms}",
-            f"{translations['Bathrooms']}: {specs.num_bathrooms}",
-            f"{translations['Style']}: {translations.get(specs.style.title(), specs.style.title())}"
+            f"{TRANSLATIONS['Built Area']}: {specs.built_area:.0f} sq ft",
+            f"{TRANSLATIONS['Total Area']}: {specs.total_area:.0f} sq ft",
+            f"{TRANSLATIONS['Bedrooms']}: {specs.num_bedrooms}",
+            f"{TRANSLATIONS['Bathrooms']}: {specs.num_bathrooms}",
+            f"{TRANSLATIONS['Style']}: {TRANSLATIONS.get(specs.style.title(), specs.style.title())}"
         ]
         
         # Calculate total content width and height
@@ -639,19 +615,7 @@ class AIHousePlanGenerator:
         
         # Add styles
         style = ET.SubElement(svg, 'style')
-        style.text = """
-            .wall { fill: none; stroke: #333; stroke-width: 3; }
-            .room-fill { fill: #f0f0f0; stroke: #333; stroke-width: 1; }
-            .door { fill: none; stroke: #8B4513; stroke-width: 2; }
-            .door-arc { fill: none; stroke: #8B4513; stroke-width: 2; }
-            .door-opening { fill: none; stroke: #999; stroke-width: 0.5; }
-            .window { fill: #87CEEB; stroke: #333; stroke-width: 1; }
-            .room-label { font-family: Arial; font-size: 12px; text-anchor: middle; fill: #333; }
-            .specs { font-family: Arial; font-size: 10px; fill: #666; }
-            .terrain { fill: none; stroke: #000; stroke-width: 2; stroke-dasharray: 10,5; }
-            .front-line { fill: none; stroke: #0066cc; stroke-width: 2; stroke-dasharray: 5,5; }
-            .legend { font-family: Arial; font-size: 10px; fill: #0066cc; }
-        """
+        style.text = SVG_STYLES
         
         # Add white background
         ET.SubElement(svg, 'rect', {
@@ -881,7 +845,7 @@ class AIHousePlanGenerator:
                 'x': str(label_x),
                 'y': str(label_y),
                 'class': 'room-label'
-            }).text = translations.get(room.name, room.name)
+            }).text = TRANSLATIONS.get(room.name, room.name)
             
             # Room dimensions (small text)
             dim_text = f"{room.width:.0f}' × {room.height:.0f}'"
@@ -908,7 +872,7 @@ class AIHousePlanGenerator:
             'y': '25',
             'style': 'font-family: Arial; font-size: 16px; font-weight: bold; text-anchor: middle; fill: #333;'
         })
-        title.text = translations['AI-Generated House Plan']
+        title.text = TRANSLATIONS['AI-Generated House Plan']
         
         # Add legend for front line right below the specifications
         legend_x = specs_x
@@ -924,7 +888,7 @@ class AIHousePlanGenerator:
             'x': str(legend_x + 35),
             'y': str(legend_y + 4),
             'style': 'font-family: Arial; font-size: 12px; fill: #333;'  # Match specs style
-        }).text = translations['Front of House']
+        }).text = TRANSLATIONS['Front of House']
         
         # Print area statistics
         print("\nEstatísticas de Área:")
@@ -933,7 +897,7 @@ class AIHousePlanGenerator:
         print(f"Porcentagem do Terreno Utilizada: {(total_constructed_area/specs.total_area)*100:.1f}%")
         print("\nÁreas dos Cômodos:")
         for room_name, area in room_areas:
-            translated_name = translations.get(room_name, room_name)
+            translated_name = TRANSLATIONS.get(room_name, room_name)
             print(f"{translated_name}: {area:.0f} sq ft ({(area/total_constructed_area)*100:.1f}% da área construída)")
         
         return svg
