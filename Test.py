@@ -86,7 +86,7 @@ def gerar_imagem_casa(
     Gera uma imagem simulada da casa com base na descrição do cliente e inclinação do terreno usando OpenAI DALL·E.
     """
     try:
-        resultado = analisar_terreno_por_coordenadas(latitude, longitude)
+        resultado = analisar_terreno_por_coordenadas(lat, lng)
         inclinacao = resultado['inclinacao_percentual']
         graus = resultado['inclinacao_graus']
         diferenca = resultado['diferenca_altura']
