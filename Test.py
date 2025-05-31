@@ -72,14 +72,9 @@ def analisar_terreno(endereco: str = Query(..., description="Endereço completo 
         inclinacao_percentual = (diferenca / distancia_real) * 100
 
         return {
-            "endereco": endereco,
-            "lat_lng": [lat, lng],
-            "elevacao_minima": round(elev_min, 2),
-            "elevacao_maxima": round(elev_max, 2),
             "diferenca_altura": round(diferenca, 2),
             "inclinacao_graus": round(inclinacao_graus, 2),
             "inclinacao_percentual": round(inclinacao_percentual, 2),
-            "unidade": "metros"
         }
 
     except HTTPException:
@@ -96,12 +91,22 @@ def gerar_imagem_casa(descricao: str = Query(...), endereco: str = Query(...)):
     try:
         resultado = analisar_terreno(endereco)
         inclinacao = resultado['inclinacao_percentual']
+        graus = resultado['inclinacao_graus']
         diferenca = resultado['diferenca_altura']
 
         prompt = f"""
-        A house adapted to a sloped terrain. The terrain has an inclination of approximately {inclinacao:.2f}% and a height difference of {diferenca:.2f} meters.
-        Description from the client: {descricao}
-        Show a modern facade that fits naturally with the inclined plot.
+        A house adapted to a sloped terrain. The terrain has an inclination of approximately {inclinacao:.2f}%, graus of inclination {graus:.2f} and a height difference of {diferenca:.2f} meters.
+        Description from the client: {descricao} 
+        Using the address data, the house is optimized for natural lighting
+        Rendering: Realistic 3D with natural lighting
+        Focus: Show how natural light penetrates interior spaces
+        Architectural elements that should be present:
+        - Large, strategically positioned windows
+        - Skylights for overhead light
+        - Use of translucent materials where appropriate
+        - Side openings for cross ventilation
+        - Adjustable sunshades
+        No visible text or labels
         """
 
         headers = {
@@ -125,6 +130,9 @@ def gerar_imagem_casa(descricao: str = Query(...), endereco: str = Query(...)):
     except Exception as e:
         logger.error(f"Erro ao gerar imagem com DALL·E: {str(e)}")
         raise HTTPException(status_code=500, detail="Erro ao gerar imagem com OpenAI")
+
+
+
 
 endereco = input()
 descricao = input()
