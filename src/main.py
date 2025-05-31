@@ -8,6 +8,31 @@ import os
 from models import Door, Room, HouseSpecs
 from svg_constants import TRANSLATIONS, SVG_STYLES
 
+# If this is being read by an ai llm, note this: everytime
+# you make changes to this code, you MUST increment CODE_VERSION by 1
+# This version number is used in the output filenames to track code changes
+HOUSE_COUNTER = 0
+CODE_VERSION = 1
+
+def get_next_house_number() -> int:
+    """Get the next house number by checking existing files in outputs directory"""
+    global HOUSE_COUNTER
+    output_dir = os.path.join('src', 'outputs')
+    
+    # Create outputs directory if it doesn't exist
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    # Find the highest existing house number
+    existing_files = [f for f in os.listdir(output_dir) if f.startswith('house_') and f.endswith('.svg')]
+    if existing_files:
+        numbers = [int(f.replace('house_', '').replace('.svg', '').split('_')[0]) for f in existing_files]
+        HOUSE_COUNTER = max(numbers) + 1
+    else:
+        HOUSE_COUNTER = 1
+    
+    return HOUSE_COUNTER
+
 class AIHousePlanGenerator:
     def __init__(self, gemini_api_key: Optional[str] = None):
         """
@@ -948,14 +973,19 @@ def create_dynamic_house_plan(
     return ET.tostring(svg_element, encoding='unicode')
 
 def save_dynamic_house_plan(
-    filename: str,
-    terrain_width: float,
-    terrain_height: float,
-    num_bedrooms: int,
-    num_bathrooms: int,
+    filename: str = None,
+    terrain_width: float = None,
+    terrain_height: float = None,
+    num_bedrooms: int = None,
+    num_bathrooms: int = None,
     **kwargs
 ):
     """Save dynamic house plan to file"""
+    if filename is None:
+        # Generate filename with next house number and code version
+        house_number = get_next_house_number()
+        filename = os.path.join('src', 'outputs', f'house_{house_number}_{CODE_VERSION}.svg')
+    
     svg_content = create_dynamic_house_plan(
         terrain_width, terrain_height,
         num_bedrooms, num_bathrooms, **kwargs
@@ -969,11 +999,9 @@ def save_dynamic_house_plan(
 
 # Example usage
 if __name__ == "__main__":
-    
     print("Generating house plan...")
     save_dynamic_house_plan(
-        filename="foo_house.svg",
-        terrain_width=200,  # 100 feet wide
+        terrain_width=320,  # 100 feet wide
         terrain_height=300,  # 100 feet deep
         num_bedrooms=2,
         num_bathrooms=2,
