@@ -27,18 +27,17 @@ class HouseImageGenerator:
             
             # Create a detailed prompt for DALL-E
             prompt = f"""
-            A realistic architectural visualization of a house with these characteristics:
+            A realistic visualization of a house with these characteristics:
             - {description}
             - Terrain slope: {slope_percentage:.1f}%
             - Height difference: {height_diff:.1f}m
             
             The image should be:
             - Photorealistic
-            - Show the house in its natural environment
-            - Include proper landscaping
             - Show the terrain slope naturally
-            - Professional architectural visualization style
             - High quality, detailed, and well-lit
+            - Adequated to the terrain {terrain_data['address']}
+            - do not exagerate on the house. make it appropriate to countrys condition
             """
             
             # Prepare the request to DALL-E API

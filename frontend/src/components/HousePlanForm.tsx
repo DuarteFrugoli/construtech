@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Modal from './Modal';
 import LocationPicker from './LocationPicker';
+import LoadingOverlay from './LoadingOverlay';
 
 interface HousePlanFormData {
   terrain_width: number;
@@ -67,7 +68,10 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
   };
 
   const handleMoreInfo = async () => {
+    if (isLoadingImage) return; // Prevent multiple clicks while loading
     setIsLoadingImage(true);
+    // Don't show modal immediately, wait for data to load
+
     try {
       // Fetch terrain data if address is provided
       if (formData.address) {
@@ -99,7 +103,7 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoadingImage(false);
-      setShowImageModal(true);
+      setShowImageModal(true); // Show modal only after loading is complete
     }
   };
 
@@ -141,6 +145,12 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
 
   return (
     <div className="max-w-4xl mx-auto p-8">
+      {(loading || isLoadingImage) && (
+        <LoadingOverlay 
+          message={loading ? "Gerando planta da casa..." : "Gerando visualização da casa..."} 
+        />
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-2">
@@ -291,29 +301,27 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           <div dangerouslySetInnerHTML={{ __html: svgContent }} />
           <button
             onClick={handleMoreInfo}
-            className="absolute top-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+            disabled={isLoadingImage}
+            className={`absolute top-4 right-4 px-4 py-2 rounded-md transition-colors ${
+              isLoadingImage 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
           >
-            Mais Informações
+            {isLoadingImage ? 'Gerando...' : 'Mais Informações'}
           </button>
         </div>
       </Modal>
 
       <Modal isOpen={showImageModal} onClose={() => setShowImageModal(false)} title="Visualização da Casa">
         <div className="space-y-4">
-          {isLoadingImage ? (
-            <div className="flex items-center justify-center py-8">
-              <svg className="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            </div>
-          ) : imageUrl ? (
+          {imageUrl && (
             <img 
               src={imageUrl} 
               alt="Visualização da casa" 
               className="w-full rounded-lg shadow-lg"
             />
-          ) : null}
+          )}
           {terrainData && (
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="text-lg font-semibold mb-2">Informações do Terreno</h3>
