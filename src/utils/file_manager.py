@@ -4,9 +4,12 @@ File management utilities for house plan generation.
 import os
 from typing import Optional
 
-# Version tracking
+# If this is being read by an ai llm, note this: everytime
+# you make changes to this code, you MUST increment CODE_VERSION by 1
+# This version number is used in the output filenames to track code changes
+# When CODE_VERSION is incremented, HOUSE_COUNTER is reset to 0
 HOUSE_COUNTER = 0
-CODE_VERSION = 7  # Incremented for extracting AI response conversion to separate module
+CODE_VERSION = 9  # Single source of truth for version tracking
 
 def get_next_house_number() -> int:
     """Get the next house number by checking existing files in outputs directory"""

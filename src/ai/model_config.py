@@ -4,8 +4,11 @@ AI model initialization and configuration for house plan generation.
 import os
 from typing import Optional
 import google.generativeai as genai
+from dotenv import load_dotenv
 
-def initialize_model(gemini_api_key: Optional[str] = "AIzaSyCxc--_uw0L-wv9E7vCCPdqLPwHAaNyqus") -> tuple[bool, Optional[genai.GenerativeModel]]:
+load_dotenv()
+
+def initialize_model(gemini_api_key: Optional[str] = None) -> tuple[bool, Optional[genai.GenerativeModel]]:
     """
     Initialize the Gemini AI model
     
@@ -16,17 +19,12 @@ def initialize_model(gemini_api_key: Optional[str] = "AIzaSyCxc--_uw0L-wv9E7vCCP
         Tuple of (success: bool, model: Optional[GenerativeModel])
     """
     try:
-        gemini_api_key = "AIzaSyCxc--_uw0L-wv9E7vCCPdqLPwHAaNyqus"
-        if gemini_api_key:
-            genai.configure(api_key=gemini_api_key)
+        api_key = gemini_api_key or os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
+        if api_key:
+            genai.configure(api_key=api_key)
         else:
-            # Try to get from environment
-            api_key = os.getenv('GOOGLE_API_KEY')
-            if api_key:
-                genai.configure(api_key=api_key)
-            else:
-                print("Warning: No Google API key provided. Using rule-based generation instead.")
-                return False, None
+            print("Warning: No Google API key provided. Using rule-based generation instead.")
+            return False, None
         
         # List available models
         print("Available models:")

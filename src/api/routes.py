@@ -7,6 +7,9 @@ from pydantic import BaseModel, Field
 from typing import Optional, Dict
 import xml.etree.ElementTree as ET
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from core.models import HouseSpecs
 from generators.house_plan_generator import HousePlanGenerator
@@ -29,9 +32,9 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Initialize services with API keys
-terrain_analyzer = TerrainAnalyzer("AIzaSyAB_RNeA3SUG_mUivMEZrKECowFebeHChw")
-image_generator = HouseImageGenerator("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")
+# Initialize services with API keys from environment
+terrain_analyzer = TerrainAnalyzer(os.getenv("GOOGLE_MAPS_API_KEY", ""))
+image_generator = HouseImageGenerator(os.getenv("OPENAI_API_KEY", ""))
 
 class HousePlanRequest(BaseModel):
     """Request model for house plan generation."""

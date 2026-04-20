@@ -20,7 +20,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect }) => 
   useEffect(() => {
     // Load Google Maps script
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyAB_RNeA3SUG_mUivMEZrKECowFebeHChw&callback=initMap`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&callback=initMap`;
     script.async = true;
     script.defer = true;
     document.head.appendChild(script);
