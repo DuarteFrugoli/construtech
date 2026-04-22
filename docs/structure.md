@@ -4,22 +4,10 @@ Data: 22/04/2026
 
 ---
 
-## O que está bom
-
-- Separação clara entre frontend e backend
-- Backend com subpastas por responsabilidade (`ai/`, `api/`, `core/`, `generators/`, `utils/`)
-- `core/models.py` centraliza todos os data models
-- Frontend com componentes separados por arquivo
-
----
-
-## Problemas na Raiz do Projeto
+## Pendente na Raiz do Projeto
 
 | Arquivo | Problema |
 |---------|----------|
-| `Test.py` | **Crítico:** contém chaves de API hardcoded. Deve ser deletado ou movido para `tests/` sem as chaves |
-| `foo_house.svg` | Arquivo de teste solto na raiz. Deve ir para `src/outputs/` ou ser deletado |
-| `repomix-output.xml` | Artefato de ferramenta externa — não pertence ao repositório. Adicionar ao `.gitignore` |
 | `src/main.py` | Script legado standalone — confunde com o ponto de entrada real da API (`api/server.py`) |
 
 ---
@@ -76,7 +64,6 @@ src/                               ← estrutura proposta
 
 | Arquivo atual | Sugestão | Motivo |
 |---|---|---|
-| `Test.py` | `tests/test_api.py` | PEP8: minúsculo; mover para pasta `tests/` |
 | `rule_based_layout.py` | `rule_based_generator.py` | Consistência com `house_plan_generator.py` |
 | `ai_response_converter.py` | `ai_layout_converter.py` | Mais descritivo — deixa claro que converte layout, não resposta genérica |
 | `svg_constants.py` | `constants.py` (dentro de `utils/`) | Prefixo `svg_` redundante se estiver dentro de `utils/` |
@@ -100,13 +87,11 @@ construtech/
 
 ---
 
-## Resumo
+## Resumo de Pendências
 
-| Categoria | Status |
+| Item | Detalhe |
 |---|---|
-| Separação frontend/backend | Boa |
-| Subpastas por responsabilidade | Incompleta — vários módulos soltos em `src/` |
-| Nomenclatura de arquivos | Inconsistente em alguns casos |
-| Arquivos desnecessários na raiz | `Test.py`, `foo_house.svg`, `repomix-output.xml` |
-| `Test.py` com chaves de API hardcoded | Crítico |
-| `outputs/` dentro do pacote Python | Deve ficar na raiz |
+| Módulos soltos em `src/` | `ai_response_converter.py`, `image_generator.py`, `rule_based_layout.py`, `svg_constants.py`, `svg_generator.py`, `terrain_analyzer.py` |
+| `src/main.py` legado | Remover ou isolar |
+| `outputs/` dentro do pacote Python | Mover para a raiz do projeto |
+| Renomear arquivos | 6 arquivos com sugestões na tabela acima |

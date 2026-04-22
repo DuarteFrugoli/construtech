@@ -183,13 +183,14 @@ geocoder.geocode(..., (results, status) => {
 
 ---
 
-## 6. Status das Correções Aplicadas
+## Resumo de Pendências
 
-| Problema | Status |
-|---------|--------|
-| Chaves de API hardcoded (`routes.py`, `model_config.py`, `LocationPicker.tsx`) | Corrigido |
-| `has_kitchen` definido duas vezes em `models.py` | Corrigido |
-| `CODE_VERSION` duplicado entre `main.py` e `file_manager.py` | Corrigido |
-| `.env` adicionado ao `.gitignore` | Corrigido |
-| `python-dotenv` adicionado ao `requirements.txt` | Corrigido |
-| Demais bugs listados acima | Pendente |
+| Categoria | Quantidade |
+|---|---|
+| Migração `google-generativeai` para `google-genai` (depreciado) | 1 |
+| Chaves de API expiradas/inativas (ação manual no console) | 3 |
+| Bugs de backend (B1–B12) | 12 |
+| Bugs de frontend (F1–F8) | 8 |
+| Qualidade de código (Q1–Q11) | 11 |
+| Segurança (S1–S7) | 7 |
+| Validações ausentes (V1–V8) | 8 |
