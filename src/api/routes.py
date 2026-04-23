@@ -5,7 +5,7 @@ import asyncio
 import logging
 import os
 import xml.etree.ElementTree as ET
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Response
@@ -58,11 +58,23 @@ class HousePlanRequest(BaseModel):
     recuo_fundo: float = Field(1.5, description="Recuo de fundo em metros", ge=0, le=20)
     num_pavimentos: int = Field(2, description="Gabarito máximo (pavimentos)", ge=1, le=30)
     taxa_permeabilidade: float = Field(0.15, description="Taxa mínima de permeabilidade (0 a 1)", ge=0, lt=1)
+    description_tecnica: str = Field("", description="Requisitos técnicos para a planta (ambientes, funcionalidades)")
 
 class ImageGenerationRequest(BaseModel):
     """Request model for house image generation."""
-    description: str = Field(..., description="Description of the house")
+    description_estetica: str = Field("", description="Preferências estéticas para fachada e visual")
+    description_tecnica: str = Field("", description="Requisitos técnicos (contexto para a imagem)")
     terrain_data: Dict = Field(..., description="Terrain analysis data")
+    num_bedrooms: int = Field(1, ge=1, le=20)
+    num_bathrooms: int = Field(1, ge=1, le=20)
+    has_garage: bool = False
+    has_dining_room: bool = False
+    style: str = "modern"
+    num_pavimentos: int = Field(1, ge=1, le=30)
+    terrain_width: float = Field(10.0, gt=0, le=500)
+    terrain_height: float = Field(10.0, gt=0, le=500)
+    recuo_frontal: float = Field(3.0, ge=0, le=20)
+    room_layout: List[Dict] = Field(default_factory=list, description="Room positions from generated plan")
 
 @app.get("/analyze-terrain")
 async def analyze_terrain(address: str = Query(..., description="Address to analyze", max_length=200)):
@@ -86,9 +98,22 @@ async def generate_house_image(request: ImageGenerationRequest):
     Generate a realistic house image using DALL-E based on the description and terrain data.
     """
     try:
+        plan_context = {
+            "num_bedrooms": request.num_bedrooms,
+            "num_bathrooms": request.num_bathrooms,
+            "has_garage": request.has_garage,
+            "has_dining_room": request.has_dining_room,
+            "style": request.style,
+            "num_pavimentos": request.num_pavimentos,
+            "terrain_width": request.terrain_width,
+            "terrain_height": request.terrain_height,
+            "recuo_frontal": request.recuo_frontal,
+            "description_tecnica": request.description_tecnica,
+            "room_layout": request.room_layout,
+        }
         loop = asyncio.get_event_loop()
         image_url = await loop.run_in_executor(
-            None, lambda: image_generator.generate_house_image(request.description, request.terrain_data)
+            None, lambda: image_generator.generate_house_image(request.description_estetica, request.terrain_data, plan_context)
         )
         return {"image_url": image_url}
     except RuntimeError as e:
@@ -99,18 +124,10 @@ async def generate_house_image(request: ImageGenerationRequest):
         raise HTTPException(status_code=500, detail="Erro interno ao gerar imagem.")
 
 @app.post("/generate-house-plan")
-async def generate_house_plan(request: HousePlanRequest) -> Response:
+async def generate_house_plan(request: HousePlanRequest):
     """
     Generate a house plan based on the provided specifications.
-    
-    Args:
-        request: House plan generation request parameters
-        
-    Returns:
-        SVG content of the generated house plan
-        
-    Raises:
-        HTTPException: If there's an error generating the house plan
+    Returns JSON with 'svg' (SVG string) and 'layout' (room positions list).
     """
     try:
         # Create specifications
@@ -129,6 +146,7 @@ async def generate_house_plan(request: HousePlanRequest) -> Response:
             recuo_fundo=request.recuo_fundo,
             num_pavimentos=request.num_pavimentos,
             taxa_permeabilidade=request.taxa_permeabilidade,
+            description_tecnica=request.description_tecnica,
         )
         
         # Generate plan
@@ -141,12 +159,20 @@ async def generate_house_plan(request: HousePlanRequest) -> Response:
         
         # Convert to string
         svg_content = ET.tostring(svg_element, encoding='unicode')
-        
-        # Return raw SVG content
-        return Response(
-            content=svg_content,
-            media_type="image/svg+xml"
-        )
+
+        # Serialize room layout (only spatial fields needed for image generation)
+        layout = [
+            {
+                "name": r.name,
+                "x": r.x,
+                "y": r.y,
+                "width": r.width,
+                "height": r.height,
+            }
+            for r in rooms
+        ]
+
+        return {"svg": svg_content, "layout": layout}
         
     except Exception as e:
         logger.error(f"Error generating house plan: {e}")

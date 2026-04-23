@@ -13,7 +13,8 @@ interface HousePlanFormData {
   has_garage: boolean;
   style: string;
   address: string;
-  description: string;
+  description_tecnica: string;
+  description_estetica: string;
   // Plano Diretor
   taxa_ocupacao: number;              // percentual 0–100
   coeficiente_aproveitamento: number; // CA
@@ -25,15 +26,11 @@ interface HousePlanFormData {
 }
 
 interface TerrainData {
-  min_elevation: number;
-  max_elevation: number;
-  height_difference: number;
-  slope: number;
-  slope_angle: number;
-  coordinates: {
-    lat: number;
-    lng: number;
-  };
+  address: string;
+  coordinates: { lat: number; lng: number };
+  elevation: { min: number; max: number; difference: number };
+  slope: { average: number; maximum: number; average_percentage: number; maximum_percentage: number };
+  warnings: string[];
 }
 
 interface HousePlanFormProps {
@@ -63,7 +60,8 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
     has_garage: false,
     style: 'modern',
     address: '',
-    description: '',
+    description_tecnica: '',
+    description_estetica: '',
     ...GENERIC_PLANO_DIRETOR,
   });
   const [usarPlanoDiretor, setUsarPlanoDiretor] = useState(false);
@@ -72,6 +70,7 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
   const [showModal, setShowModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [svgContent, setSvgContent] = useState<string>('');
+  const [roomLayout, setRoomLayout] = useState<Array<{name: string; x: number; y: number; width: number; height: number}>>([]);
   const [imageUrl, setImageUrl] = useState<string>('');
   const [isLoadingImage, setIsLoadingImage] = useState(false);
   const [terrainData, setTerrainData] = useState<TerrainData | null>(null);
@@ -98,11 +97,6 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
 
   const handleMoreInfo = async () => {
     if (isLoadingImage) return;
-    
-    if (!formData.description.trim()) {
-      setError('Por favor, preencha a descrição antes de gerar a visualização.');
-      return;
-    }
 
     setIsLoadingImage(true);
 
@@ -135,8 +129,19 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          description: formData.description,
-          terrain_data: currentTerrainData
+          description_estetica: formData.description_estetica,
+          description_tecnica: formData.description_tecnica,
+          terrain_data: currentTerrainData,
+          num_bedrooms: formData.num_bedrooms,
+          num_bathrooms: formData.num_bathrooms,
+          has_garage: formData.has_garage,
+          has_dining_room: formData.has_dining_room,
+          style: formData.style,
+          num_pavimentos: formData.num_pavimentos,
+          terrain_width: formData.terrain_width,
+          terrain_height: formData.terrain_height,
+          recuo_frontal: formData.recuo_frontal,
+          room_layout: roomLayout,
         })
       });
       if (!imageResponse.ok) {
@@ -180,14 +185,16 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           recuo_fundo: formData.recuo_fundo,
           num_pavimentos: formData.num_pavimentos,
           taxa_permeabilidade: formData.taxa_permeabilidade / 100,
+          description_tecnica: formData.description_tecnica,
         })
       });
 
       if (!response.ok) throw new Error('Failed to generate house plan');
-      const svg = await response.text();
-      setSvgContent(svg);
+      const data = await response.json();
+      setSvgContent(data.svg);
+      setRoomLayout(data.layout ?? []);
       setShowModal(true);
-      if (onSubmit) onSubmit(svg);
+      if (onSubmit) onSubmit(data.svg);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -288,13 +295,27 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">Descrição da Casa</label>
+            <label className="block text-sm font-semibold text-gray-700">Requisitos Técnicos — para a planta</label>
+            <p className="text-xs text-gray-400">Ambientes especiais, espaços funcionais, necessidades de engenharia</p>
             <textarea
-              name="description"
-              value={formData.description}
+              name="description_tecnica"
+              value={formData.description_tecnica}
               onChange={handleInputChange}
               className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors px-4 py-3"
-              placeholder="Descreva como você imagina sua casa"
+              placeholder="Ex: dependência, escritório em casa, varanda gourmet, quarto master suite, acessibilidade..."
+              rows={3}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-700">Preferências Estéticas — para a visualização 3D</label>
+            <p className="text-xs text-gray-400">Fachada, materiais, estilo visual, referências arquitetônicas</p>
+            <textarea
+              name="description_estetica"
+              value={formData.description_estetica}
+              onChange={handleInputChange}
+              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors px-4 py-3"
+              placeholder="Ex: fachada minimalista, concreto aparente e madeira, jardim frontal, telhado plano..."
               rows={3}
             />
           </div>
@@ -440,9 +461,8 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
       </form>
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Planta da Casa">
-        <div className="relative">
-          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svgContent) }} />
-          <div className="absolute top-4 right-4 flex gap-2">
+        <div className="flex flex-col w-full gap-3">
+          <div className="flex gap-2 justify-end">
             <button
               onClick={() => {
                 const blob = new Blob([svgContent], { type: 'image/svg+xml' });
@@ -455,22 +475,23 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
               }}
-              className="px-4 py-2 rounded-md bg-green-600 hover:bg-green-700 text-white transition-colors"
+              className="px-4 py-2 rounded-md bg-green-600 hover:bg-green-700 text-white transition-colors text-sm"
             >
               Download SVG
             </button>
             <button
               onClick={handleMoreInfo}
               disabled={isLoadingImage}
-              className={`px-4 py-2 rounded-md transition-colors ${
+              className={`px-4 py-2 rounded-md transition-colors text-sm ${
                 isLoadingImage
                   ? 'bg-gray-400 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700 text-white'
               }`}
             >
-              {isLoadingImage ? 'Gerando...' : 'Mais Informações'}
+              {isLoadingImage ? 'Gerando...' : 'Visualização 3D'}
             </button>
           </div>
+          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svgContent) }} />
         </div>
       </Modal>
 
@@ -484,11 +505,49 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
             />
           )}
           {terrainData && (
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-2">Informações do Terreno</h3>
-              <pre className="text-sm text-gray-700 whitespace-pre-wrap">
-                {JSON.stringify(terrainData, null, 2)}
-              </pre>
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-700">Análise do Terreno</h3>
+              {terrainData.warnings.length > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 space-y-1">
+                  {terrainData.warnings.map((w, i) => (
+                    <p key={i} className="text-xs text-yellow-800">⚠ {w}</p>
+                  ))}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm">
+                  <div className="text-xs text-gray-500 mb-1">Elevação mín.</div>
+                  <div className="text-lg font-semibold text-blue-600">{terrainData.elevation.min.toFixed(1)} m</div>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm">
+                  <div className="text-xs text-gray-500 mb-1">Elevação máx.</div>
+                  <div className="text-lg font-semibold text-blue-600">{terrainData.elevation.max.toFixed(1)} m</div>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm">
+                  <div className="text-xs text-gray-500 mb-1">Desnível</div>
+                  <div className="text-lg font-semibold text-orange-600">{terrainData.elevation.difference.toFixed(1)} m</div>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm">
+                  <div className="text-xs text-gray-500 mb-1">Inclinação média</div>
+                  <div className="text-lg font-semibold text-orange-600">{terrainData.slope.average_percentage.toFixed(1)} %</div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const blob = new Blob([JSON.stringify(terrainData, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'terreno.json';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Baixar dados brutos (JSON)
+              </button>
             </div>
           )}
         </div>

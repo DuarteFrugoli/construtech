@@ -49,6 +49,7 @@ class HouseSpecs:
     recuo_fundo: float = 1.5         # metros
     num_pavimentos: int = 2          # gabarito máximo
     taxa_permeabilidade: float = 0.15  # fração mínima permeável (e.g. 0.15 = 15%)
+    description_tecnica: str = ""      # requisitos técnicos e funcionais (para Gemini)
 
     @property
     def total_area(self) -> float:

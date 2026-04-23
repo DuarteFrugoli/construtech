@@ -26,6 +26,7 @@ def generate_house_plan_prompt(specs: HouseSpecs) -> str:
     - Bedrooms: {specs.num_bedrooms}
     - Bathrooms: {specs.num_bathrooms}
     - Style: [USER INPUT START]{specs.style}[USER INPUT END]
+    - Technical/functional requirements: [USER INPUT START]{specs.description_tecnica}[USER INPUT END]
     - Plano Diretor setbacks: Frontal={specs.recuo_frontal:.1f}m, Lateral={specs.recuo_lateral:.1f}m, Fundo={specs.recuo_fundo:.1f}m
     - Usable area after setbacks: approx. {max(0, specs.terrain_width - specs.recuo_lateral*2):.1f}m × {max(0, specs.terrain_height - specs.recuo_frontal - specs.recuo_fundo):.1f}m
     

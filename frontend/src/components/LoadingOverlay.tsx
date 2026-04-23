@@ -6,7 +6,7 @@ interface LoadingOverlayProps {
 
 const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ message }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-[1100] flex items-center justify-center">
       <div className="bg-white rounded-lg p-8 shadow-xl flex flex-col items-center space-y-4">
         <svg className="animate-spin h-12 w-12 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
