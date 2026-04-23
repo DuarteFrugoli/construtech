@@ -1,3 +1,5 @@
+import DOMPurify from 'dompurify';
+
 interface HousePlanPreviewProps {
   svgContent: string | null
 }
@@ -30,7 +32,7 @@ export default function HousePlanPreview({ svgContent }: HousePlanPreviewProps) 
     <div className="relative w-full h-[400px] bg-white dark:bg-slate-800 rounded-lg overflow-hidden">
       <div
         className="w-full h-full"
-        dangerouslySetInnerHTML={{ __html: svgContent }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svgContent) }}
       />
       <div className="absolute bottom-4 right-4">
         <button

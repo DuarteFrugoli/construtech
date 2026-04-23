@@ -3,8 +3,7 @@ import HousePlanForm from './components/HousePlanForm'
 
 function App() {
   const handleGenerate = () => {
-    // Handle the generated SVG if needed
-    console.log('House plan generated')
+    // SVG disponível via prop onSubmit se necessário
   }
 
   return (
