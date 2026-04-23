@@ -32,8 +32,8 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Initialize services with API keys from environment
-terrain_analyzer = TerrainAnalyzer(os.getenv("GOOGLE_MAPS_API_KEY", ""))
+# Initialize services
+terrain_analyzer = TerrainAnalyzer()
 image_generator = HouseImageGenerator(os.getenv("OPENAI_API_KEY", ""))
 
 class HousePlanRequest(BaseModel):

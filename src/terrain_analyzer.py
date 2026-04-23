@@ -5,53 +5,56 @@ import requests
 import math
 from typing import Tuple, List, Dict
 import logging
-from fastapi import HTTPException
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+NOMINATIM_HEADERS = {"User-Agent": "Construtech/1.0 (house plan generator)"}
+
 class TerrainAnalyzer:
-    def __init__(self, google_api_key: str):
-        self.google_api_key = google_api_key
+    def __init__(self):
+        pass
 
     def get_coordinates(self, address: str) -> Tuple[float, float]:
-        """Get geographical coordinates from address using Google Maps Geocoding API."""
+        """Get geographical coordinates from address using Nominatim (OpenStreetMap)."""
         try:
-            url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={self.google_api_key}"
-            response = requests.get(url)
+            response = requests.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": address, "format": "json", "limit": 1},
+                headers=NOMINATIM_HEADERS,
+                timeout=10,
+            )
             response.raise_for_status()
             data = response.json()
-            
-            if data["status"] != "OK":
-                raise HTTPException(status_code=400, detail=f"Geocoding failed: {data['status']}")
-            
-            location = data["results"][0]["geometry"]["location"]
-            return location["lat"], location["lng"]
-            
+
+            if not data:
+                raise ValueError(f"Endereço não encontrado: {address}")
+
+            return float(data[0]["lat"]), float(data[0]["lon"])
+
         except requests.exceptions.RequestException as e:
-            logger.error(f"Error getting coordinates: {str(e)}")
-            raise HTTPException(status_code=500, detail="Error getting coordinates from Google Maps API")
+            logger.error(f"Error getting coordinates: {e}")
+            raise RuntimeError("Erro ao buscar coordenadas. Verifique o endereço informado.")
 
     def get_elevations(self, points: List[Tuple[float, float]]) -> List[float]:
-        """Get elevation data for points using Google Maps Elevation API."""
+        """Get elevation data for points using Open-Elevation API."""
         try:
-            # Format points for API request
-            locations = "|".join([f"{lat},{lng}" for lat, lng in points])
-            url = f"https://maps.googleapis.com/maps/api/elevation/json?locations={locations}&key={self.google_api_key}"
-            
-            response = requests.get(url)
+            locations = [{"latitude": lat, "longitude": lng} for lat, lng in points]
+
+            response = requests.post(
+                "https://api.open-elevation.com/api/v1/lookup",
+                json={"locations": locations},
+                timeout=20,
+            )
             response.raise_for_status()
             data = response.json()
-            
-            if data["status"] != "OK":
-                raise HTTPException(status_code=400, detail=f"Elevation data failed: {data['status']}")
-            
+
             return [result["elevation"] for result in data["results"]]
-            
+
         except requests.exceptions.RequestException as e:
-            logger.error(f"Error getting elevations: {str(e)}")
-            raise HTTPException(status_code=500, detail="Error getting elevation data from Google Maps API")
+            logger.error(f"Error getting elevations: {e}")
+            raise RuntimeError("Erro ao buscar dados de elevação.")
 
     def analyze_terrain(self, address: str) -> Dict:
         """
@@ -114,7 +117,7 @@ class TerrainAnalyzer:
             
         except Exception as e:
             logger.error(f"Error analyzing terrain: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e))
+            raise RuntimeError(str(e))
 
     def _generate_warnings(self, avg_slope: float, max_slope: float, height_diff: float) -> List[str]:
         """Generate warnings based on terrain characteristics."""

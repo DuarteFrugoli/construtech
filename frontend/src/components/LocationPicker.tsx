@@ -1,76 +1,69 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix Leaflet's default marker icons broken by bundlers
+import markerIconUrl from 'leaflet/dist/images/marker-icon.png';
+import markerIconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
+import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png';
+
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconUrl: markerIconUrl,
+  iconRetinaUrl: markerIconRetinaUrl,
+  shadowUrl: markerShadowUrl,
+});
 
 interface LocationPickerProps {
   onLocationSelect: (address: string) => void;
 }
 
-declare global {
-  interface Window {
-    google: any;
-    initMap: () => void;
-  }
-}
-
 const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect }) => {
   const mapRef = useRef<HTMLDivElement>(null);
-  const [map, setMap] = useState<any>(null);
-  const [marker, setMarker] = useState<any>(null);
-  const [geocoder, setGeocoder] = useState<any>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
 
   useEffect(() => {
-    // Load Google Maps script
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&callback=initMap`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
+    if (!mapRef.current || mapInstanceRef.current) return;
 
-    window.initMap = () => {
-      if (mapRef.current) {
-        const initialMap = new window.google.maps.Map(mapRef.current, {
-          center: { lat: -23.550520, lng: -46.633308 }, // São Paulo coordinates
-          zoom: 12,
-          mapTypeControl: true,
-          streetViewControl: true,
-          fullscreenControl: true,
-        });
+    const map = L.map(mapRef.current).setView([-23.55052, -46.633308], 12);
 
-        const initialGeocoder = new window.google.maps.Geocoder();
-        setMap(initialMap);
-        setGeocoder(initialGeocoder);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map);
 
-        // Add click listener to map
-        initialMap.addListener('click', (e: any) => {
-          const lat = e.latLng.lat();
-          const lng = e.latLng.lng();
+    map.on('click', async (e: L.LeafletMouseEvent) => {
+      const { lat, lng } = e.latlng;
 
-          // Remove existing marker if any
-          if (marker) {
-            marker.setMap(null);
-          }
-
-          // Add new marker
-          const newMarker = new window.google.maps.Marker({
-            position: { lat, lng },
-            map: initialMap,
-            animation: window.google.maps.Animation.DROP
-          });
-          setMarker(newMarker);
-
-          // Get address from coordinates
-          initialGeocoder.geocode({ location: { lat, lng } }, (results: any, status: string) => {
-            if (status === 'OK' && results[0]) {
-              onLocationSelect(results[0].formatted_address);
-            }
-          });
-        });
+      if (markerRef.current) {
+        markerRef.current.setLatLng([lat, lng]);
+      } else {
+        markerRef.current = L.marker([lat, lng]).addTo(map);
       }
-    };
+
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+          { headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' } }
+        );
+        const data = await response.json();
+        if (data.display_name) {
+          onLocationSelect(data.display_name);
+        } else {
+          onLocationSelect(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        }
+      } catch {
+        onLocationSelect(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      }
+    });
+
+    mapInstanceRef.current = map;
 
     return () => {
-      // Cleanup
-      document.head.removeChild(script);
-      delete window.initMap;
+      map.remove();
+      mapInstanceRef.current = null;
+      markerRef.current = null;
     };
   }, [onLocationSelect]);
 
