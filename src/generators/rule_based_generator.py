@@ -9,6 +9,44 @@ class RuleBasedLayoutGenerator:
     def __init__(self):
         pass
 
+    # ── Zone classification ───────────────────────────────────────────────────
+    _SOCIAL_KEYWORDS  = {"living", "kitchen", "dining", "gourmet", "varanda", "lavabo"}
+    _PRIVATE_KEYWORDS = {"bedroom", "bathroom", "home office", "dependência", "dependencia"}
+    _SERVICE_KEYWORDS = {"garage", "garagem", "serviço", "servico"}
+
+    # Positive = compatible, negative = incompatible
+    _ZONE_COMPATIBILITY = {
+        ("social",      "social"):      3,
+        ("private",     "private"):     3,
+        ("service",     "service"):     2,
+        ("circulation", "social"):      2,
+        ("circulation", "private"):     2,
+        ("circulation", "service"):     1,
+        ("social",      "circulation"): 2,
+        ("private",     "circulation"): 2,
+        ("service",     "circulation"): 1,
+        ("social",      "private"):    -8,
+        ("private",     "social"):     -8,
+        ("social",      "service"):    -4,
+        ("service",     "social"):     -4,
+        ("private",     "service"):    -3,
+        ("service",     "private"):    -3,
+    }
+    _ZONE_ORDER = {"social": 0, "circulation": 1, "private": 2, "service": 3}
+
+    def _get_zone(self, room_name: str) -> str:
+        """Classify a room into a functional zone."""
+        name = room_name.lower()
+        if any(k in name for k in ("corredor", "hall", "corridor")):
+            return "circulation"
+        if any(k in name for k in self._SOCIAL_KEYWORDS):
+            return "social"
+        if any(k in name for k in self._PRIVATE_KEYWORDS):
+            return "private"
+        if any(k in name for k in self._SERVICE_KEYWORDS):
+            return "service"
+        return "social"
+
     def generate_layout(self, specs: HouseSpecs) -> List[Room]:
         """Generate a rule-based room layout"""
         rooms = []
@@ -65,40 +103,55 @@ class RuleBasedLayoutGenerator:
                 name = f"Bedroom {i+1}" if specs.num_bedrooms > 1 else "Bedroom"
                 size = room_sizes["Bedroom"]
             rooms.append(Room(name, *size, 0, 0))
-            print(f"DEBUG: {name}: {size[0]} x {size[1]}")
         
         # Add bathrooms
         for i in range(specs.num_bathrooms):
             name = f"Bathroom {i+1}" if specs.num_bathrooms > 1 else "Bathroom"
             rooms.append(Room(name, *room_sizes["Bathroom"], 0, 0))
-            print(f"DEBUG: {name}: {room_sizes['Bathroom'][0]} x {room_sizes['Bathroom'][1]}")
         
         if specs.has_dining_room:
             rooms.append(Room("Dining Room", 20, 25, 0, 0))
-            print("DEBUG: Dining Room: 20 x 25")
         
         if specs.has_garage:
             rooms.append(Room("Garage", 25, 30, 0, 0))
-            print("DEBUG: Garage: 25 x 30")
-        
-        # Calculate current total area
-        total_room_area = sum(room.area for room in rooms)
-        print(f"\nDEBUG: Total room area before scaling: {total_room_area:.0f} m²")
+
+        if specs.has_home_office:
+            rooms.append(Room("Home Office", 12, 15, 0, 0))
+
+        if specs.has_dependencia:
+            rooms.append(Room("Dependência", 15, 18, 0, 0))
+
+        if specs.has_varanda:
+            rooms.append(Room("Varanda", 12, 15, 0, 0))
+
+        if specs.has_lavabo:
+            rooms.append(Room("Lavabo", 4, 5, 0, 0))
+
+        if specs.has_area_gourmet:
+            rooms.append(Room("Área Gourmet", 20, 25, 0, 0))
+
+        if specs.has_area_servico:
+            rooms.append(Room("Área de Serviço", 8, 12, 0, 0))
         
         # Scale rooms to match the desired building percentage
-        target_area = specs.built_area
+        total_room_area = sum(room.area for room in rooms)
         if total_room_area > 0:
-            scale_factor = math.sqrt(target_area / total_room_area)
+            scale_factor = math.sqrt(specs.built_area / total_room_area)
             for room in rooms:
                 room.width *= scale_factor
                 room.height *= scale_factor
 
-        final_area = sum(room.area for room in rooms)
         logger.debug(
-            f"Final area: {final_area:.0f} m² "
-            f"({(final_area/specs.total_area)*100:.1f}% of terrain, "
-            f"taxa_ocupacao={specs.taxa_ocupacao*100:.0f}%)"
+            f"Final area: {sum(r.area for r in rooms):.0f} m² "
+            f"({(sum(r.area for r in rooms)/specs.total_area)*100:.1f}% of terrain)"
         )
+
+        # Add corridor after scaling with realistic proportions (≥2 bedrooms)
+        if specs.num_bedrooms >= 2:
+            bedroom_rooms = [r for r in rooms if "Bedroom" in r.name]
+            corridor_width = 1.5  # standard corridor width in metres
+            corridor_length = max(3.0, sum(r.width for r in bedroom_rooms))
+            rooms.append(Room("Corredor", corridor_width, corridor_length, 0, 0))
 
         return self._position_rooms(rooms, specs)
 
@@ -107,8 +160,8 @@ class RuleBasedLayoutGenerator:
         if not rooms:
             return rooms
         
-        # Sort rooms by area (largest first)
-        rooms.sort(key=lambda r: r.area, reverse=True)
+        # Sort rooms by functional zone (social → corridor → private → service), then by area
+        rooms.sort(key=lambda r: (self._ZONE_ORDER.get(self._get_zone(r.name), 99), -r.area))
         
         # Initialize the first room at origin, respecting front and lateral setbacks
         if rooms:
@@ -203,20 +256,26 @@ class RuleBasedLayoutGenerator:
                 
                 for x, y, is_horizontal in positions:
                     if is_valid_placement(x, y, width, height):
-                        # Calculate a score based on how well the room fits
+                        # Zone-aware adjacency score
                         score = 0
-                        
-                        # Prefer positions that are adjacent to multiple rooms
+                        room_zone = self._get_zone(room.name)
+
                         for other_rect in placed_rectangles:
-                            if (x + width == other_rect['x'] or x == other_rect['x'] + other_rect['width'] or
-                                y + height == other_rect['y'] or y == other_rect['y'] + other_rect['height']):
-                                score += 1
-                        
-                        # Prefer positions that are closer to the center of the terrain
+                            is_adjacent = (
+                                x + width == other_rect['x'] or
+                                x == other_rect['x'] + other_rect['width'] or
+                                y + height == other_rect['y'] or
+                                y == other_rect['y'] + other_rect['height']
+                            )
+                            if is_adjacent:
+                                other_zone = self._get_zone(other_rect['room'].name)
+                                score += self._ZONE_COMPATIBILITY.get((room_zone, other_zone), 0)
+
+                        # Slight preference for positions closer to terrain centre
                         center_x = specs.terrain_width / 2
                         center_y = specs.terrain_height / 2
                         distance_to_center = abs((x + width/2) - center_x) + abs((y + height/2) - center_y)
-                        score -= distance_to_center / 100  # Normalize the distance impact
+                        score -= distance_to_center / 100
                         
                         if score > best_score:
                             best_score = score
