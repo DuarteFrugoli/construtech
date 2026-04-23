@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Tuple
 from core.models import Room, HouseSpecs
-from svg_constants import TRANSLATIONS, SVG_STYLES
+from utils.constants import TRANSLATIONS, SVG_STYLES
 
 class SVGHousePlanGenerator:
     def __init__(self):
@@ -363,9 +363,9 @@ class SVGHousePlanGenerator:
                 'style': 'font-family: Arial; font-size: 12px; fill: #333;'  # Made text slightly larger and darker
             }).text = text
         
-        # Title
+        # Title — centered on actual SVG width
         title = ET.SubElement(svg, 'text', {
-            'x': '400',
+            'x': str(svg_width / 2),
             'y': '25',
             'style': 'font-family: Arial; font-size: 16px; font-weight: bold; text-anchor: middle; fill: #333;'
         })

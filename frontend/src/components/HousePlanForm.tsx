@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DOMPurify from 'dompurify';
 import Modal from './Modal';
 import LocationPicker from './LocationPicker';
 import LoadingOverlay from './LoadingOverlay';
@@ -31,6 +32,8 @@ interface HousePlanFormProps {
   onSubmit?: (svg: string) => void;
 }
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
   const [formData, setFormData] = useState<HousePlanFormData>({
     terrain_width: 20,
@@ -56,7 +59,7 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
     const { name, value, type } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : type === 'number' ? Number(value) : value
     }));
   };
 
@@ -68,42 +71,59 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
   };
 
   const handleMoreInfo = async () => {
-    if (isLoadingImage) return; // Prevent multiple clicks while loading
+    if (isLoadingImage) return;
+    
+    if (!formData.description.trim()) {
+      setError('Por favor, preencha a descrição antes de gerar a visualização.');
+      return;
+    }
+
     setIsLoadingImage(true);
-    // Don't show modal immediately, wait for data to load
 
     try {
-      // Fetch terrain data if address is provided
+      let currentTerrainData = terrainData;
+
       if (formData.address) {
-        const terrainResponse = await fetch(`http://localhost:8000/analyze-terrain?address=${encodeURIComponent(formData.address)}`);
+        const terrainResponse = await fetch(`${API_URL}/analyze-terrain?address=${encodeURIComponent(formData.address)}`);
         if (!terrainResponse.ok) throw new Error('Failed to analyze terrain');
-        const newTerrainData = await terrainResponse.json();
-        setTerrainData(newTerrainData);
-        localStorage.setItem('terrainData', JSON.stringify(newTerrainData));
+        currentTerrainData = await terrainResponse.json();
+        setTerrainData(currentTerrainData);
+        localStorage.setItem('terrainData', JSON.stringify(currentTerrainData));
       }
 
-      // Generate house image if we have terrain data and description
-      if (formData.description) {
-        const imageResponse = await fetch('http://localhost:8000/generate-house-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            description: formData.description,
-            terrain_data: terrainData || JSON.parse(localStorage.getItem('terrainData') || '{}')
-          })
-        });
-        if (!imageResponse.ok) {
-          const errorData = await imageResponse.json();
-          throw new Error(errorData.detail || 'Failed to generate house image');
+      if (!currentTerrainData) {
+        try {
+          const stored = localStorage.getItem('terrainData');
+          currentTerrainData = stored ? JSON.parse(stored) : null;
+        } catch {
+          currentTerrainData = null;
         }
-        const { image_url } = await imageResponse.json();
-        setImageUrl(image_url);
       }
+
+      if (!currentTerrainData || Object.keys(currentTerrainData).length === 0) {
+        setError('Dados do terreno não disponíveis. Informe um endereço primeiro.');
+        return;
+      }
+
+      const imageResponse = await fetch(`${API_URL}/generate-house-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: formData.description,
+          terrain_data: currentTerrainData
+        })
+      });
+      if (!imageResponse.ok) {
+        const errorData = await imageResponse.json();
+        throw new Error(errorData.detail || 'Failed to generate house image');
+      }
+      const { image_url } = await imageResponse.json();
+      setImageUrl(image_url);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoadingImage(false);
-      setShowImageModal(true); // Show modal only after loading is complete
+      setShowImageModal(true);
     }
   };
 
@@ -116,7 +136,7 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
 
     try {
       // Generate house plan
-      const response = await fetch('http://localhost:8000/generate-house-plan', {
+      const response = await fetch(`${API_URL}/generate-house-plan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -298,7 +318,7 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Planta da Casa">
         <div className="relative">
-          <div dangerouslySetInnerHTML={{ __html: svgContent }} />
+          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svgContent) }} />
           <button
             onClick={handleMoreInfo}
             disabled={isLoadingImage}

@@ -22,6 +22,7 @@ env/
 htmlcov/
 
 # Outputs gerados pelo projeto
+outputs/
 src/outputs/
 *.svg
 foo_house.svg

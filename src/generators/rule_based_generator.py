@@ -1,6 +1,9 @@
 import math
-from typing import List, Dict, Tuple
+import logging
+from typing import List
 from core.models import Room, HouseSpecs, Door
+
+logger = logging.getLogger(__name__)
 
 class RuleBasedLayoutGenerator:
     def __init__(self):
@@ -8,43 +11,30 @@ class RuleBasedLayoutGenerator:
 
     def generate_layout(self, specs: HouseSpecs) -> List[Room]:
         """Generate a rule-based room layout"""
-        print("\nDEBUG: Starting rule-based layout generation")
-        print(f"DEBUG: Target built area: {specs.built_area:.0f} m²")
-        
-        # Seção especial de prints do Plano Diretor
-        print("\n=== CHECKLIST PLANO DIRETOR ===")
-        print("✓ Taxa de Ocupação (TO) fixa em 70% conforme Plano Diretor")
-        print("✓ Recuo frontal mínimo de 5 metros conforme Plano Diretor")
-        print("=== FIM DO CHECKLIST ===\n")
-        
         rooms = []
-        
-        # Calculate house dimensions based on terrain and building percentage
-        # Make the house more balanced while respecting terrain proportions
+
         terrain_ratio = specs.terrain_width / specs.terrain_height
-        print(f"DEBUG: Terrain ratio: {terrain_ratio:.2f}")
         
-        if terrain_ratio > 1.5:  # If terrain is too wide
+        if terrain_ratio > 1.5:
             house_width = specs.terrain_width * 0.8
             house_height = specs.built_area / house_width
-        elif terrain_ratio < 0.67:  # If terrain is too narrow
+        elif terrain_ratio < 0.67:
             house_height = specs.terrain_height * 0.8
             house_width = specs.built_area / house_height
-        else:  # If terrain is roughly square
+        else:
             house_width = math.sqrt(specs.built_area) * 0.9
             house_height = specs.built_area / house_width
-        
-        print(f"DEBUG: Initial house dimensions: {house_width:.0f} x {house_height:.0f}")
-        
-        # Define room templates with flexible proportions
-        if specs.built_area < 800:  # Small house
+
+        logger.debug(f"Initial house dimensions: {house_width:.0f} x {house_height:.0f}")
+
+        if specs.built_area < 800:
             room_sizes = {
                 "Living Room": (20, 25),
                 "Kitchen": (15, 20),
                 "Bedroom": (15, 18),
                 "Bathroom": (8, 10)
             }
-        elif specs.built_area < 1500:  # Medium house
+        elif specs.built_area < 1500:
             room_sizes = {
                 "Living Room": (25, 30),
                 "Kitchen": (20, 25),
@@ -52,7 +42,7 @@ class RuleBasedLayoutGenerator:
                 "Master Bedroom": (20, 25),
                 "Bathroom": (10, 12)
             }
-        else:  # Large house
+        else:
             room_sizes = {
                 "Living Room": (30, 35),
                 "Kitchen": (25, 30),
@@ -60,18 +50,13 @@ class RuleBasedLayoutGenerator:
                 "Master Bedroom": (25, 30),
                 "Bathroom": (12, 15)
             }
-        
-        print("\nDEBUG: Room sizes before scaling:")
-        # Add required rooms
+
         if specs.has_living_room:
             rooms.append(Room("Living Room", *room_sizes["Living Room"], 0, 0))
-            print(f"DEBUG: Living Room: {room_sizes['Living Room'][0]} x {room_sizes['Living Room'][1]}")
-        
+
         if specs.has_kitchen:
             rooms.append(Room("Kitchen", *room_sizes["Kitchen"], 0, 0))
-            print(f"DEBUG: Kitchen: {room_sizes['Kitchen'][0]} x {room_sizes['Kitchen'][1]}")
-        
-        # Add bedrooms
+
         for i in range(specs.num_bedrooms):
             if i == 0 and specs.num_bedrooms > 1:
                 name = "Master Bedroom"
@@ -185,11 +170,8 @@ class RuleBasedLayoutGenerator:
             
             # Calculate mean
             if not wall_lengths:
-                return 10.0  # Default if no walls
-            
-            mean_length = sum(wall_lengths) / len(wall_lengths)
-            print(f"DEBUG: Mean wall length: {mean_length:.2f}")
-            return mean_length
+                return 10.0
+            return sum(wall_lengths) / len(wall_lengths)
         
         def find_best_position(room):
             """Find the best position for a room that maximizes space usage"""
@@ -235,10 +217,7 @@ class RuleBasedLayoutGenerator:
             
             return best_position, best_adjacent_room, best_is_horizontal
         
-        # Calculate mean wall length once for all doors
-        mean_wall_length = calculate_mean_wall_length()
-        door_size = mean_wall_length * 0.2  # Door size is 20% of mean wall length
-        print(f"DEBUG: Door size: {door_size:.2f}")
+        door_size = calculate_mean_wall_length() * 0.2
         
         def add_door_between_rooms(room1, room2, is_horizontal):
             """Add a door between two adjacent rooms using consistent dimensions"""
@@ -326,5 +305,11 @@ class RuleBasedLayoutGenerator:
                                 add_door_between_rooms(room, adjacent_room, is_horizontal)
                             break
                         scale_factor -= 0.1
-        
-        return rooms 
+                    else:
+                        # Room couldn't be placed at any size — remove it to avoid (0,0) overlap
+                        logger.warning(f"Could not place room '{room.name}' — skipping.")
+                        rooms[i] = None
+
+        # Remove rooms that were never positioned
+        positioned = [r for r in rooms if r is not None]
+        return positioned 

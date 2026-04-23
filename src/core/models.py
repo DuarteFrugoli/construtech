@@ -60,8 +60,3 @@ class HouseSpecs:
     @property
     def has_kitchen(self) -> bool:
         return True  # Always include kitchen
-
-    @classmethod
-    def get_dimensions(cls) -> Tuple[float, float]:
-        """Get fixed door dimensions"""
-        return 3.0, 7.0  # Fixed width and height

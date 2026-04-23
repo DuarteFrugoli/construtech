@@ -67,8 +67,8 @@ def generate_house_plan_prompt(specs: HouseSpecs) -> str:
         "rooms": [
             {{
                 "name": "Room Name",
-                "width": 40.0,
-                "height": 50.0,
+                "width": 4.5,
+                "height": 5.0,
                 "priority": 1
             }}
         ],
