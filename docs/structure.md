@@ -1,97 +1,91 @@
 # Análise de Estrutura do Projeto — Construtech
 
-Data: 22/04/2026
+Data: 22/04/2026 | Atualizado: 23/04/2026
 
 ---
 
-## Pendente na Raiz do Projeto
-
-| Arquivo | Problema |
-|---------|----------|
-| `src/main.py` | Script legado standalone — confunde com o ponto de entrada real da API (`api/server.py`) |
-
----
-
-## Problemas na estrutura do `src/`
-
-A pasta `src/` mistura módulos soltos com subpastas organizadas:
-
-```
-src/                               ← estado atual
-├── ai_response_converter.py       ← deveria estar em generators/
-├── image_generator.py             ← deveria estar em services/
-├── rule_based_layout.py           ← deveria estar em generators/
-├── svg_constants.py               ← deveria estar em utils/
-├── svg_generator.py               ← deveria estar em generators/
-├── terrain_analyzer.py            ← deveria estar em services/
-├── main.py                        ← script legado, remover ou isolar
-├── ai/
-├── api/
-├── core/
-├── generators/    ← só tem house_plan_generator.py, mas a lógica real está fora
-├── utils/
-└── outputs/       ← pasta de dados misturada com código
-```
-
-### Estrutura ideal
-
-```
-src/                               ← estrutura proposta
-├── api/
-│   ├── server.py
-│   └── routes.py
-├── core/
-│   └── models.py
-├── ai/
-│   ├── model_config.py
-│   └── prompt_generator.py
-├── generators/
-│   ├── house_plan_generator.py
-│   ├── rule_based_layout.py       ← mover de src/
-│   ├── ai_response_converter.py   ← mover de src/
-│   └── svg_generator.py           ← mover de src/
-├── services/
-│   ├── terrain_analyzer.py        ← mover de src/
-│   └── image_generator.py         ← mover de src/
-└── utils/
-    ├── file_manager.py
-    └── svg_constants.py           ← mover de src/
-```
-
----
-
-## Nomes de Arquivos
-
-| Arquivo atual | Sugestão | Motivo |
-|---|---|---|
-| `rule_based_layout.py` | `rule_based_generator.py` | Consistência com `house_plan_generator.py` |
-| `ai_response_converter.py` | `ai_layout_converter.py` | Mais descritivo — deixa claro que converte layout, não resposta genérica |
-| `svg_constants.py` | `constants.py` (dentro de `utils/`) | Prefixo `svg_` redundante se estiver dentro de `utils/` |
-| `model_config.py` | `gemini_client.py` | Mais claro sobre o que inicializa |
-| `server.py` | `main.py` (dentro de `api/`) | Convenção padrão FastAPI/Uvicorn |
-| `file_manager.py` | `output_manager.py` | Mais descritivo sobre o que gerencia |
-
----
-
-## `outputs/` dentro de `src/`
-
-Pasta de saída de dados não deve estar dentro do pacote Python. Mistura código com artefatos gerados, complica `.gitignore` e importações. O ideal é mover para a raiz:
+## Estrutura atual (após reorganização)
 
 ```
 construtech/
 ├── src/
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── main.py          ← ponto de entrada Uvicorn
+│   │   └── routes.py        ← endpoints FastAPI
+│   ├── ai/
+│   │   ├── __init__.py
+│   │   ├── gemini_client.py ← singleton do modelo Gemini
+│   │   └── prompt_generator.py
+│   ├── core/
+│   │   ├── __init__.py
+│   │   └── models.py        ← dataclasses Room, Door, HouseSpecs
+│   ├── generators/
+│   │   ├── __init__.py
+│   │   ├── ai_layout_converter.py   ← converte resposta da IA em cômodos
+│   │   ├── house_plan_generator.py  ← orquestra IA + regras
+│   │   ├── rule_based_generator.py  ← layout baseado em regras
+│   │   └── svg_generator.py         ← gera SVG a partir dos cômodos
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── image_generator.py  ← DALL-E 3 (OpenAI)
+│   │   └── terrain_analyzer.py ← Nominatim + Open-Elevation (gratuitos)
+│   └── utils/
+│       ├── __init__.py
+│       ├── constants.py        ← traduções e constantes SVG
+│       └── output_manager.py   ← gerenciamento de arquivos de saída
 ├── frontend/
-├── outputs/    ← raiz do projeto
-└── docs/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── HousePlanForm.tsx     ← formulário principal
+│   │   │   ├── HousePlanPreview.tsx  ← preview standalone (não usado)
+│   │   │   ├── LocationPicker.tsx    ← mapa Leaflet + OSM
+│   │   │   ├── LoadingOverlay.tsx
+│   │   │   └── Modal.tsx
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   ├── .env                  ← VITE_API_URL=http://localhost:8000
+│   └── vite.config.ts        ← proxy /api → localhost:8000
+├── tests/
+│   ├── test_routes.py        ← testes de integração dos endpoints
+│   └── test_external_apis.py ← conectividade: Nominatim, Open-Elevation, OpenAI, Gemini
+├── outputs/                  ← artefatos gerados (fora do pacote Python)
+├── docs/
+│   ├── audit.md
+│   └── structure.md
+├── .env                      ← GEMINI_API_KEY, OPENAI_API_KEY
+├── .gitignore
+└── requirements.txt
 ```
 
 ---
 
-## Resumo de Pendências
+## Serviços externos
+
+| Serviço | Função | Custo | Chave necessária |
+|---------|--------|-------|-----------------|
+| Nominatim (OpenStreetMap) | Geocodificação | Gratuito | Não |
+| Open-Elevation | Dados de altitude | Gratuito | Não |
+| Leaflet + OpenStreetMap | Mapa interativo no frontend | Gratuito | Não |
+| Google Gemini 1.5 Flash | Geração de layouts com IA | Pago (cota gratuita disponível) | `GEMINI_API_KEY` |
+| OpenAI DALL-E 3 | Geração de imagem da casa | Pago | `OPENAI_API_KEY` |
+
+---
+
+## Pendências de estrutura
 
 | Item | Detalhe |
 |---|---|
-| Módulos soltos em `src/` | `ai_response_converter.py`, `image_generator.py`, `rule_based_layout.py`, `svg_constants.py`, `svg_generator.py`, `terrain_analyzer.py` |
-| `src/main.py` legado | Remover ou isolar |
-| `outputs/` dentro do pacote Python | Mover para a raiz do projeto |
-| Renomear arquivos | 6 arquivos com sugestões na tabela acima |
+| `HousePlanPreview.tsx` | Componente nunca importado em nenhum lugar. Remover ou integrar ao `App.tsx` (Q4) |
+| Migração `google-generativeai` → `google-genai` | Biblioteca depreciada; migrar quando `google-genai` estabilizar |
+
+---
+
+## Resolvido
+
+| Item | Solução |
+|---|---|
+| Módulos soltos em `src/` | Movidos com `git mv` para subpastas corretas |
+| `src/main.py` legado | Removido (`git rm`) |
+| `outputs/` dentro do pacote | Movido para raiz do projeto; `.gitignore` atualizado |
+| Renomeação de 6 arquivos | `rule_based_layout.py` → `rule_based_generator.py`, `ai_response_converter.py` → `ai_layout_converter.py`, `svg_constants.py` → `constants.py`, `model_config.py` → `gemini_client.py`, `server.py` → `main.py`, `file_manager.py` → `output_manager.py` |

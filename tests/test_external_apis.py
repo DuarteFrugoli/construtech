@@ -1,6 +1,14 @@
 """
 Testes de conectividade com APIs externas.
-Verifica se as chaves estão válidas e se os serviços estão respondendo.
+Verifica se os serviços gratuitos estão respondendo e se as chaves pagas estão válidas.
+
+Serviços gratuitos (sem chave):
+  - Nominatim (OpenStreetMap) — geocodificação
+  - Open-Elevation — dados de altitude
+
+Serviços pagos (requerem chave no .env):
+  - OpenAI DALL-E 3 — geração de imagens
+  - Google Gemini — geração de layouts com IA
 
 Rodar com:
     ..\\venv\\Scripts\\pytest tests\\test_external_apis.py -v
@@ -11,100 +19,133 @@ import pytest
 import requests
 from dotenv import load_dotenv
 
-# Carrega as variáveis do .env da raiz do projeto
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+NOMINATIM_HEADERS = {"User-Agent": "Construtech/1.0 (testes automatizados)"}
+
+
 # ---------------------------------------------------------------------------
-# Google Maps — Geocoding API
+# Nominatim (OpenStreetMap) — Geocodificação gratuita
 # ---------------------------------------------------------------------------
 
-class TestGoogleMapsGeocoding:
-    def test_chave_presente(self):
-        """Verifica se a chave do Google Maps está no .env"""
-        assert GOOGLE_MAPS_API_KEY, "GOOGLE_MAPS_API_KEY não encontrada no .env"
-        assert len(GOOGLE_MAPS_API_KEY) > 10, "GOOGLE_MAPS_API_KEY parece inválida (muito curta)"
-
-    def test_geocoding_retorna_200(self):
-        """Verifica se a API de Geocoding responde com status 200"""
+class TestNominatim:
+    def test_retorna_200(self):
+        """Verifica se o Nominatim responde com status 200"""
         response = requests.get(
-            "https://maps.googleapis.com/maps/api/geocode/json",
-            params={"address": "São Paulo, Brasil", "key": GOOGLE_MAPS_API_KEY},
-            timeout=10
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": "São Paulo, Brasil", "format": "json", "limit": 1},
+            headers=NOMINATIM_HEADERS,
+            timeout=10,
         )
         assert response.status_code == 200, f"Status inesperado: {response.status_code}"
 
-    def test_geocoding_chave_valida(self):
-        """Verifica se a chave é aceita pela API (sem REQUEST_DENIED)"""
+    def test_retorna_coordenadas(self):
+        """Verifica se o Nominatim retorna coordenadas para um endereço válido"""
         response = requests.get(
-            "https://maps.googleapis.com/maps/api/geocode/json",
-            params={"address": "São Paulo, Brasil", "key": GOOGLE_MAPS_API_KEY},
-            timeout=10
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": "Avenida Paulista, São Paulo", "format": "json", "limit": 1},
+            headers=NOMINATIM_HEADERS,
+            timeout=10,
         )
         data = response.json()
-        status = data.get("status")
-        assert status != "REQUEST_DENIED", (
-            f"Chave recusada pela API de Geocoding. Mensagem: {data.get('error_message', 'sem detalhes')}"
-        )
-        assert status in ("OK", "ZERO_RESULTS"), f"Status inesperado: {status}"
+        assert len(data) > 0, "Nenhum resultado retornado pelo Nominatim"
+        lat = float(data[0]["lat"])
+        lng = float(data[0]["lon"])
+        # Coordenadas devem estar na região de São Paulo
+        assert -24.0 < lat < -23.0, f"Latitude fora da região esperada: {lat}"
+        assert -47.0 < lng < -46.0, f"Longitude fora da região esperada: {lng}"
 
-    def test_geocoding_retorna_coordenadas(self):
-        """Verifica se a API retorna coordenadas para um endereço válido"""
+    def test_endereco_invalido_retorna_lista_vazia(self):
+        """Verifica que endereço inexistente retorna lista vazia (não erro)"""
         response = requests.get(
-            "https://maps.googleapis.com/maps/api/geocode/json",
-            params={"address": "Avenida Paulista, São Paulo", "key": GOOGLE_MAPS_API_KEY},
-            timeout=10
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": "xyzxyzxyz lugar inexistente 99999", "format": "json", "limit": 1},
+            headers=NOMINATIM_HEADERS,
+            timeout=10,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list), "Resposta deve ser uma lista"
+        assert len(data) == 0, "Endereço inválido não deve retornar resultados"
+
+    def test_campos_necessarios_presentes(self):
+        """Verifica se os campos lat/lon estão presentes na resposta"""
+        response = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": "Rio de Janeiro, Brasil", "format": "json", "limit": 1},
+            headers=NOMINATIM_HEADERS,
+            timeout=10,
         )
         data = response.json()
-        assert data.get("status") == "OK", f"Status: {data.get('status')}"
+        assert len(data) > 0
+        assert "lat" in data[0], "Campo 'lat' ausente na resposta"
+        assert "lon" in data[0], "Campo 'lon' ausente na resposta"
+
+
+# ---------------------------------------------------------------------------
+# Open-Elevation — Dados de altitude gratuitos
+# ---------------------------------------------------------------------------
+
+class TestOpenElevation:
+    def test_retorna_200(self):
+        """Verifica se o Open-Elevation responde com status 200"""
+        response = requests.post(
+            "https://api.open-elevation.com/api/v1/lookup",
+            json={"locations": [{"latitude": -23.5505, "longitude": -46.6333}]},
+            timeout=20,
+        )
+        assert response.status_code == 200, f"Status inesperado: {response.status_code}"
+
+    def test_retorna_elevacao_numerica(self):
+        """Verifica se retorna um valor numérico de elevação"""
+        response = requests.post(
+            "https://api.open-elevation.com/api/v1/lookup",
+            json={"locations": [{"latitude": -23.5505, "longitude": -46.6333}]},
+            timeout=20,
+        )
+        data = response.json()
         results = data.get("results", [])
         assert len(results) > 0, "Nenhum resultado retornado"
-        location = results[0]["geometry"]["location"]
-        assert "lat" in location and "lng" in location
-        # Coordenadas devem estar na região de São Paulo
-        assert -24.0 < location["lat"] < -23.0
-        assert -47.0 < location["lng"] < -46.0
-
-
-# ---------------------------------------------------------------------------
-# Google Maps — Elevation API
-# ---------------------------------------------------------------------------
-
-class TestGoogleMapsElevation:
-    def test_elevation_chave_valida(self):
-        """Verifica se a chave é aceita pela API de Elevation"""
-        response = requests.get(
-            "https://maps.googleapis.com/maps/api/elevation/json",
-            params={"locations": "-23.5505,-46.6333", "key": GOOGLE_MAPS_API_KEY},
-            timeout=10
-        )
-        data = response.json()
-        status = data.get("status")
-        assert status != "REQUEST_DENIED", (
-            f"Chave recusada pela API de Elevation. Mensagem: {data.get('error_message', 'sem detalhes')}"
-        )
-
-    def test_elevation_retorna_valor(self):
-        """Verifica se a API retorna um valor de elevação numérico"""
-        response = requests.get(
-            "https://maps.googleapis.com/maps/api/elevation/json",
-            params={"locations": "-23.5505,-46.6333", "key": GOOGLE_MAPS_API_KEY},
-            timeout=10
-        )
-        data = response.json()
-        assert data.get("status") == "OK", f"Status: {data.get('status')}"
-        results = data.get("results", [])
-        assert len(results) > 0
         elevation = results[0].get("elevation")
         assert isinstance(elevation, (int, float)), f"Elevação inválida: {elevation}"
         assert elevation > 0, "Elevação de São Paulo deve ser positiva"
 
+    def test_multiplos_pontos(self):
+        """Verifica consulta com múltiplos pontos (usado pela grade 5x5 do terrain_analyzer)"""
+        locations = [
+            {"latitude": -23.5505 + i * 0.0001, "longitude": -46.6333 + j * 0.0001}
+            for i in range(-2, 3)
+            for j in range(-2, 3)
+        ]
+        response = requests.post(
+            "https://api.open-elevation.com/api/v1/lookup",
+            json={"locations": locations},
+            timeout=20,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        results = data.get("results", [])
+        assert len(results) == 25, f"Esperado 25 resultados, obtido {len(results)}"
+
+    def test_estrutura_resposta(self):
+        """Verifica se os campos latitude/longitude/elevation estão presentes"""
+        response = requests.post(
+            "https://api.open-elevation.com/api/v1/lookup",
+            json={"locations": [{"latitude": -23.5505, "longitude": -46.6333}]},
+            timeout=20,
+        )
+        data = response.json()
+        result = data["results"][0]
+        assert "latitude" in result
+        assert "longitude" in result
+        assert "elevation" in result
+
 
 # ---------------------------------------------------------------------------
-# OpenAI — API de Imagens (DALL-E)
+# OpenAI — API de Imagens (DALL-E 3)
 # ---------------------------------------------------------------------------
 
 class TestOpenAI:
@@ -114,11 +155,11 @@ class TestOpenAI:
         assert OPENAI_API_KEY.startswith("sk-"), "OPENAI_API_KEY não tem o formato esperado (deve começar com 'sk-')"
 
     def test_autenticacao_valida(self):
-        """Verifica se a chave é aceita pela OpenAI (chama /models que é barato)"""
+        """Verifica se a chave é aceita pela OpenAI"""
         response = requests.get(
             "https://api.openai.com/v1/models",
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-            timeout=10
+            timeout=10,
         )
         assert response.status_code != 401, "Chave da OpenAI inválida ou expirada (401 Unauthorized)"
         assert response.status_code != 403, "Chave da OpenAI sem permissão (403 Forbidden)"
@@ -129,7 +170,7 @@ class TestOpenAI:
         response = requests.get(
             "https://api.openai.com/v1/models",
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-            timeout=10
+            timeout=10,
         )
         assert response.status_code == 200
         models = [m["id"] for m in response.json().get("data", [])]
@@ -153,7 +194,7 @@ class TestGeminiAPI:
         response = requests.get(
             "https://generativelanguage.googleapis.com/v1beta/models",
             params={"key": GEMINI_API_KEY},
-            timeout=10
+            timeout=10,
         )
         assert response.status_code != 400, "Chave do Gemini inválida (400)"
         assert response.status_code != 403, (
@@ -166,7 +207,7 @@ class TestGeminiAPI:
         response = requests.get(
             "https://generativelanguage.googleapis.com/v1beta/models",
             params={"key": GEMINI_API_KEY},
-            timeout=10
+            timeout=10,
         )
         assert response.status_code == 200
         models = [m["name"] for m in response.json().get("models", [])]
@@ -181,7 +222,7 @@ class TestGeminiAPI:
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
             params={"key": GEMINI_API_KEY},
             json={"contents": [{"parts": [{"text": "Responda apenas: ok"}]}]},
-            timeout=15
+            timeout=15,
         )
         assert response.status_code == 200, (
             f"Gemini retornou erro {response.status_code}: {response.text[:300]}"

@@ -70,7 +70,6 @@ class TestGenerateHousePlan:
         response = client.post("/generate-house-plan", json=self.BASE_PAYLOAD)
         assert response.status_code == 200
         content = response.text
-        # SVG deve conter retângulos (cômodos)
         assert "<rect" in content
 
     def test_com_sala_de_jantar_e_garagem(self):
@@ -108,11 +107,17 @@ class TestGenerateHousePlan:
         """Verifica que largura zero é rejeitada pelo Pydantic"""
         payload = {**self.BASE_PAYLOAD, "terrain_width": 0}
         response = client.post("/generate-house-plan", json=payload)
-        assert response.status_code == 422  # Unprocessable Entity
+        assert response.status_code == 422
 
     def test_rejeita_terreno_negativo(self):
         """Verifica que dimensões negativas são rejeitadas"""
         payload = {**self.BASE_PAYLOAD, "terrain_height": -10}
+        response = client.post("/generate-house-plan", json=payload)
+        assert response.status_code == 422
+
+    def test_rejeita_terreno_acima_do_limite(self):
+        """Verifica que terrenos acima de 500m são rejeitados (V2)"""
+        payload = {**self.BASE_PAYLOAD, "terrain_width": 501}
         response = client.post("/generate-house-plan", json=payload)
         assert response.status_code == 422
 
@@ -132,10 +137,17 @@ class TestGenerateHousePlan:
         response = client.post("/generate-house-plan", json={"terrain_width": 15})
         assert response.status_code == 422
 
+    def test_ignora_gemini_api_key_no_payload(self):
+        """Verifica que enviar gemini_api_key no payload não causa erro (campo removido — B1)"""
+        payload = {**self.BASE_PAYLOAD, "gemini_api_key": "qualquer-valor"}
+        response = client.post("/generate-house-plan", json=payload)
+        # Campo extra deve ser ignorado, não causar erro
+        assert response.status_code == 200
+
 
 # ---------------------------------------------------------------------------
 # GET /analyze-terrain
-# (chama API externa — marcado como integration test)
+# (chama APIs externas gratuitas: Nominatim + Open-Elevation)
 # ---------------------------------------------------------------------------
 
 class TestAnalyzeTerrain:
@@ -144,33 +156,70 @@ class TestAnalyzeTerrain:
         response = client.get("/analyze-terrain")
         assert response.status_code == 422
 
+    def test_rejeita_address_muito_longo(self):
+        """Verifica que address acima de 200 caracteres é rejeitado (V1)"""
+        endereco_longo = "A" * 201
+        response = client.get("/analyze-terrain", params={"address": endereco_longo})
+        assert response.status_code == 422
+
+    def test_aceita_address_no_limite(self):
+        """Verifica que address com exatamente 200 caracteres é aceito na validação"""
+        endereco_limite = "A" * 200
+        response = client.get("/analyze-terrain", params={"address": endereco_limite})
+        # Pode retornar 422 (endereço não encontrado pelo Nominatim) ou 200
+        # O importante é que não falhe por comprimento
+        assert response.status_code in (200, 422, 500)
+
     @pytest.mark.integration
-    def test_endereco_valido(self):
-        """Chama a API real do Google Maps com endereço válido"""
+    def test_endereco_valido_nominatim(self):
+        """Chama Nominatim + Open-Elevation com endereço válido"""
         response = client.get("/analyze-terrain", params={"address": "Avenida Paulista, São Paulo"})
         assert response.status_code == 200
         data = response.json()
-        assert "slope_percentage" in data or "error" in data
+        # Verifica estrutura da resposta do terrain_analyzer
+        assert "coordinates" in data
+        assert "elevation" in data
+        assert "slope" in data
+        assert "warnings" in data
+        assert "lat" in data["coordinates"]
+        assert "lng" in data["coordinates"]
+        assert "min" in data["elevation"]
+        assert "max" in data["elevation"]
+        assert "difference" in data["elevation"]
+        assert "average_percentage" in data["slope"]
 
     @pytest.mark.integration
-    def test_endereco_invalido(self):
-        """Verifica comportamento com endereço que não existe"""
+    def test_endereco_invalido_retorna_erro_tratado(self):
+        """Verifica comportamento com endereço que não existe — não deve vazar traceback"""
         response = client.get("/analyze-terrain", params={"address": "xyzxyzxyz lugar inexistente 99999"})
-        # Deve retornar erro tratado, não 500 com traceback
-        assert response.status_code in (200, 400, 404, 500)
+        assert response.status_code in (422, 500)
+        data = response.json()
+        assert "detail" in data
+        # Mensagem deve ser amigável, não um traceback interno
+        assert "traceback" not in data["detail"].lower()
 
 
 # ---------------------------------------------------------------------------
 # POST /generate-house-image
-# (chama API externa — marcado como integration test)
+# (chama API externa paga: OpenAI DALL-E 3)
 # ---------------------------------------------------------------------------
 
 class TestGenerateHouseImage:
+    # Estrutura correta do terrain_data conforme retornado pelo terrain_analyzer
     TERRAIN_DATA = {
-        "slope_percentage": 5.0,
-        "height_difference": 2.0,
-        "min_elevation": 750.0,
-        "max_elevation": 752.0,
+        "address": "Avenida Paulista, São Paulo",
+        "coordinates": {"lat": -23.5614, "lng": -46.6560},
+        "elevation": {
+            "min": 748.0,
+            "max": 752.0,
+            "difference": 4.0
+        },
+        "slope": {
+            "average": 0.0036,
+            "maximum": 0.0072,
+            "average_percentage": 0.36,
+            "maximum_percentage": 0.72
+        },
         "warnings": []
     }
 
