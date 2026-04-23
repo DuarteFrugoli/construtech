@@ -319,17 +319,35 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Planta da Casa">
         <div className="relative">
           <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svgContent) }} />
-          <button
-            onClick={handleMoreInfo}
-            disabled={isLoadingImage}
-            className={`absolute top-4 right-4 px-4 py-2 rounded-md transition-colors ${
-              isLoadingImage 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
-          >
-            {isLoadingImage ? 'Gerando...' : 'Mais Informações'}
-          </button>
+          <div className="absolute top-4 right-4 flex gap-2">
+            <button
+              onClick={() => {
+                const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'planta-casa.svg';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              }}
+              className="px-4 py-2 rounded-md bg-green-600 hover:bg-green-700 text-white transition-colors"
+            >
+              Download SVG
+            </button>
+            <button
+              onClick={handleMoreInfo}
+              disabled={isLoadingImage}
+              className={`px-4 py-2 rounded-md transition-colors ${
+                isLoadingImage
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              {isLoadingImage ? 'Gerando...' : 'Mais Informações'}
+            </button>
+          </div>
         </div>
       </Modal>
 

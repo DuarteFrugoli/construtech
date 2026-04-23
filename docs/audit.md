@@ -81,7 +81,7 @@ Google Geocoder removido. Nominatim é chamado no backend; erros são exibidos n
 | ~~Q1~~ | `src/main.py` | ~15 imports não utilizados | ✅ Arquivo removido |
 | ~~Q2~~ | `src/main.py` | `create_dynamic_house_plan()` duplicado | ✅ Arquivo removido |
 | ~~Q3~~ | Todos os .py | `print()` de debug em todos os módulos | ✅ Substituído por `logging` |
-| Q4 | `frontend/src/components/HousePlanPreview.tsx` | Componente nunca importado nem usado | ⚠️ Pendente (código morto) |
+| ~~Q4~~ | `frontend/src/components/HousePlanPreview.tsx` | Componente nunca importado nem usado | ✅ Deletado; botão Download SVG adicionado ao modal em `HousePlanForm.tsx` |
 | ~~Q5~~ | `src/core/models.py` | `HouseSpecs.get_dimensions()` código morto | ✅ Removido |
 | ~~Q6~~ | `src/generators/svg_generator.py` | Título hardcoded em `x='400'` | ✅ Usa `svg_width / 2` |
 | ~~Q7~~ | `src/utils/constants.py` | Quartos 4+ sem tradução | ✅ `_TranslationsProxy` com matching dinâmico |
@@ -100,9 +100,9 @@ Google Geocoder removido. Nominatim é chamado no backend; erros são exibidos n
 | ~~S2~~ | Alta | `routes.py` | `gemini_api_key` no payload do browser | ✅ Campo removido |
 | ~~S3~~ | Média | `terrain_analyzer.py` | Endereço interpolado na URL sem encoding | ✅ Substituído por Nominatim com `params=` |
 | ~~S4~~ | Média | `routes.py` | `detail=str(e)` expõe erros internos | ✅ Mensagens genéricas |
-| S5 | Média | `prompt_generator.py`, `image_generator.py` | Prompt injection via campos do usuário | ⚠️ Pendente |
+| ~~S5~~ | Média | `prompt_generator.py`, `image_generator.py` | Prompt injection via campos do usuário | ✅ Marcadores `[USER INPUT START]...[USER INPUT END]` adicionados; instrução de sistema adicionada ao prompt |
 | ~~S6~~ | Baixa | `routes.py` | CORS `allow_methods=["*"]` excessivo | ✅ Restrito a `GET`, `POST` e `Content-Type` |
-| S7 | Baixa | `src/api/main.py` | `host="0.0.0.0"` em todas as interfaces | ⚠️ Aceitável em dev; usar reverse proxy em produção |
+| ~~S7~~ | Baixa | `src/api/main.py` | `host="0.0.0.0"` em todas as interfaces | ✅ Host configurável via `HOST` env var (padrão `0.0.0.0` dev; usar `HOST=127.0.0.1` em prod) |
 
 ---
 
@@ -117,7 +117,7 @@ Google Geocoder removido. Nominatim é chamado no backend; erros são exibidos n
 | ~~V5~~ | `HousePlanForm.tsx` | Sem verificação de `description` não-vazia | ✅ Validação antes de chamar a API |
 | ~~V6~~ | `HousePlanForm.tsx` | Sem guard para `terrain_data` vazio | ✅ Validação antes de enviar para `/generate-house-image` |
 | ~~V7~~ | `output_manager.py` | `int()` sem try/catch em nome de arquivo | ✅ `try/except ValueError` adicionado |
-| V8 | `image_generator.py` | Erros da OpenAI descartados sem log | ⚠️ Logger registra o erro antes de relançar |
+| ~~V8~~ | `image_generator.py` | Erros da OpenAI descartados sem log | ✅ Log do corpo da resposta HTTP da OpenAI (`status_code` + `response.text`) quando disponível |
 
 ---
 
@@ -141,8 +141,8 @@ Google Geocoder removido. Nominatim é chamado no backend; erros são exibidos n
 |---|---|---|---|
 | Bugs de backend (B1–B12) | 12 | 12 | 0 |
 | Bugs de frontend (F1–F8) | 8 | 8 | 0 |
-| Qualidade de código (Q1–Q11) | 11 | 10 | 1 (Q4) |
-| Segurança (S1–S7) | 7 | 5 | 2 (S5, S7) |
-| Validações ausentes (V1–V8) | 8 | 7 | 1 (V8 parcial) |
+| Qualidade de código (Q1–Q11) | 11 | 11 | 0 |
+| Segurança (S1–S7) | 7 | 7 | 0 |
+| Validações ausentes (V1–V8) | 8 | 8 | 0 |
 | Migração `google-generativeai` → `google-genai` | 1 | 0 | 1 |
 | Chaves de API expiradas/inativas (ação manual) | — | — | verificar |
