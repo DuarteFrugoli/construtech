@@ -89,17 +89,17 @@ class RuleBasedLayoutGenerator:
         target_area = specs.built_area
         if total_room_area > 0:
             scale_factor = math.sqrt(target_area / total_room_area)
-            print(f"DEBUG: Scale factor: {scale_factor:.2f}")
             for room in rooms:
                 room.width *= scale_factor
                 room.height *= scale_factor
-                print(f"DEBUG: Scaled {room.name}: {room.width:.0f} x {room.height:.0f} = {room.area:.0f} m²")
-        
+
         final_area = sum(room.area for room in rooms)
-        print(f"\nDEBUG: Final total area: {final_area:.0f} m²")
-        print(f"DEBUG: Taxa de Ocupação: {specs.TAXA_OCUPACAO*100}%")
-        print(f"DEBUG: Actual percentage: {(final_area/specs.total_area)*100:.1f}%")
-        
+        logger.debug(
+            f"Final area: {final_area:.0f} m² "
+            f"({(final_area/specs.total_area)*100:.1f}% of terrain, "
+            f"taxa_ocupacao={specs.taxa_ocupacao*100:.0f}%)"
+        )
+
         return self._position_rooms(rooms, specs)
 
     def _position_rooms(self, rooms: List[Room], specs: HouseSpecs) -> List[Room]:
@@ -110,17 +110,16 @@ class RuleBasedLayoutGenerator:
         # Sort rooms by area (largest first)
         rooms.sort(key=lambda r: r.area, reverse=True)
         
-        # Initialize the first room at origin, respecting front setback
+        # Initialize the first room at origin, respecting front and lateral setbacks
         if rooms:
-            # Determine if front is on width or height side
             if specs.terrain_width > specs.terrain_height:
-                # Front is on width side (vertical line)
-                rooms[0].x = specs.RECUO_FRONTAL  # Add front setback
-                rooms[0].y = 0
+                # Front is on the left (x-axis)
+                rooms[0].x = specs.recuo_frontal
+                rooms[0].y = specs.recuo_lateral
             else:
-                # Front is on height side (horizontal line)
-                rooms[0].x = 0
-                rooms[0].y = specs.RECUO_FRONTAL  # Add front setback
+                # Front is on the top (y-axis)
+                rooms[0].x = specs.recuo_lateral
+                rooms[0].y = specs.recuo_frontal
         
         # Keep track of placed rectangles
         placed_rectangles = []
@@ -138,24 +137,34 @@ class RuleBasedLayoutGenerator:
             # Check if room fits within terrain bounds
             if x < 0 or y < 0 or x + width > specs.terrain_width or y + height > specs.terrain_height:
                 return False
-            
-            # Check for front setback
+
             if specs.terrain_width > specs.terrain_height:
-                # Front is on width side
-                if x < specs.RECUO_FRONTAL:
+                # Front = left (x), Back = right, Laterals = top/bottom (y)
+                if x < specs.recuo_frontal:
+                    return False
+                if x + width > specs.terrain_width - specs.recuo_fundo:
+                    return False
+                if y < specs.recuo_lateral:
+                    return False
+                if y + height > specs.terrain_height - specs.recuo_lateral:
                     return False
             else:
-                # Front is on height side
-                if y < specs.RECUO_FRONTAL:
+                # Front = top (y), Back = bottom, Laterals = left/right (x)
+                if y < specs.recuo_frontal:
                     return False
-            
+                if y + height > specs.terrain_height - specs.recuo_fundo:
+                    return False
+                if x < specs.recuo_lateral:
+                    return False
+                if x + width > specs.terrain_width - specs.recuo_lateral:
+                    return False
+
             # Check for overlaps with existing rooms
             for rect in placed_rectangles:
-                # If there's any overlap, return False
-                if not (x + width <= rect['x'] or  # New room is completely to the left
-                       x >= rect['x'] + rect['width'] or  # New room is completely to the right
-                       y + height <= rect['y'] or  # New room is completely below
-                       y >= rect['y'] + rect['height']):  # New room is completely above
+                if not (x + width <= rect['x'] or
+                       x >= rect['x'] + rect['width'] or
+                       y + height <= rect['y'] or
+                       y >= rect['y'] + rect['height']):
                     return False
             return True
         

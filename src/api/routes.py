@@ -50,6 +50,14 @@ class HousePlanRequest(BaseModel):
     has_dining_room: bool = Field(False, description="Whether to include dining room")
     has_garage: bool = Field(False, description="Whether to include garage")
     style: str = Field("modern", description="House style (modern, traditional, compact)")
+    # Plano Diretor — default: genérico permissivo
+    taxa_ocupacao: float = Field(0.6, description="Taxa de Ocupação (0 a 1)", gt=0, le=1)
+    coeficiente_aproveitamento: float = Field(2.0, description="Coeficiente de aproveitamento", gt=0, le=20)
+    recuo_frontal: float = Field(3.0, description="Recuo frontal em metros", ge=0, le=20)
+    recuo_lateral: float = Field(1.5, description="Recuo lateral em metros", ge=0, le=20)
+    recuo_fundo: float = Field(1.5, description="Recuo de fundo em metros", ge=0, le=20)
+    num_pavimentos: int = Field(2, description="Gabarito máximo (pavimentos)", ge=1, le=30)
+    taxa_permeabilidade: float = Field(0.15, description="Taxa mínima de permeabilidade (0 a 1)", ge=0, lt=1)
 
 class ImageGenerationRequest(BaseModel):
     """Request model for house image generation."""
@@ -113,7 +121,14 @@ async def generate_house_plan(request: HousePlanRequest) -> Response:
             num_bathrooms=request.num_bathrooms,
             has_dining_room=request.has_dining_room,
             has_garage=request.has_garage,
-            style=request.style
+            style=request.style,
+            taxa_ocupacao=request.taxa_ocupacao,
+            coeficiente_aproveitamento=request.coeficiente_aproveitamento,
+            recuo_frontal=request.recuo_frontal,
+            recuo_lateral=request.recuo_lateral,
+            recuo_fundo=request.recuo_fundo,
+            num_pavimentos=request.num_pavimentos,
+            taxa_permeabilidade=request.taxa_permeabilidade,
         )
         
         # Generate plan

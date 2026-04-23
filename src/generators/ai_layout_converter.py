@@ -45,7 +45,7 @@ class AIResponseConverter:
             if scale_factor == terrain_scale:
                 test_area = total_ai_area * (terrain_scale ** 2)
                 test_percentage = (test_area / specs.total_area) * 100
-                if test_percentage < specs.TAXA_OCUPACAO * 100 - 7:
+                if test_percentage < specs.taxa_ocupacao * 100 - 7:
                     scale_factor = min(
                         math.sqrt((specs.built_area * 0.97) / total_ai_area),
                         terrain_scale

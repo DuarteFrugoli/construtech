@@ -14,6 +14,14 @@ interface HousePlanFormData {
   style: string;
   address: string;
   description: string;
+  // Plano Diretor
+  taxa_ocupacao: number;              // percentual 0–100
+  coeficiente_aproveitamento: number; // CA
+  recuo_frontal: number;              // metros
+  recuo_lateral: number;              // metros
+  recuo_fundo: number;                // metros
+  num_pavimentos: number;             // gabarito
+  taxa_permeabilidade: number;        // percentual 0–100
 }
 
 interface TerrainData {
@@ -34,6 +42,17 @@ interface HousePlanFormProps {
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+// Valores genéricos permissivos usados quando o usuário não quer configurar o plano diretor
+const GENERIC_PLANO_DIRETOR = {
+  taxa_ocupacao: 60,
+  coeficiente_aproveitamento: 2.0,
+  recuo_frontal: 3.0,
+  recuo_lateral: 1.5,
+  recuo_fundo: 1.5,
+  num_pavimentos: 2,
+  taxa_permeabilidade: 15,
+};
+
 const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
   const [formData, setFormData] = useState<HousePlanFormData>({
     terrain_width: 20,
@@ -44,8 +63,10 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
     has_garage: false,
     style: 'modern',
     address: '',
-    description: ''
+    description: '',
+    ...GENERIC_PLANO_DIRETOR,
   });
+  const [usarPlanoDiretor, setUsarPlanoDiretor] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -64,10 +85,15 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
   };
 
   const handleLocationSelect = (address: string) => {
-    setFormData(prev => ({
-      ...prev,
-      address
-    }));
+    setFormData(prev => ({ ...prev, address }));
+  };
+
+  const handleTogglePlanoDiretor = (checked: boolean) => {
+    setUsarPlanoDiretor(checked);
+    if (!checked) {
+      // Volta para os valores genéricos ao desativar
+      setFormData(prev => ({ ...prev, ...GENERIC_PLANO_DIRETOR }));
+    }
   };
 
   const handleMoreInfo = async () => {
@@ -146,7 +172,14 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           num_bathrooms: formData.num_bathrooms,
           has_dining_room: formData.has_dining_room,
           has_garage: formData.has_garage,
-          style: formData.style
+          style: formData.style,
+          taxa_ocupacao: formData.taxa_ocupacao / 100,
+          coeficiente_aproveitamento: formData.coeficiente_aproveitamento,
+          recuo_frontal: formData.recuo_frontal,
+          recuo_lateral: formData.recuo_lateral,
+          recuo_fundo: formData.recuo_fundo,
+          num_pavimentos: formData.num_pavimentos,
+          taxa_permeabilidade: formData.taxa_permeabilidade / 100,
         })
       });
 
@@ -289,6 +322,96 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
             />
             <label className="ml-2 block text-sm text-gray-700">Garagem</label>
           </div>
+        </div>
+
+        {/* Plano Diretor */}
+        <div className="border border-gray-200 rounded-lg p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700">Parâmetros do Plano Diretor</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {usarPlanoDiretor
+                  ? 'Preencha conforme a zona do seu terreno. Consulte a prefeitura local.'
+                  : 'Usando valores genéricos permissivos. Ative para informar os parâmetros do seu município.'}
+              </p>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <span className="text-xs text-gray-600">Configurar</span>
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={usarPlanoDiretor}
+                  onChange={e => handleTogglePlanoDiretor(e.target.checked)}
+                />
+                <div className={`w-10 h-6 rounded-full transition-colors ${usarPlanoDiretor ? 'bg-blue-600' : 'bg-gray-300'}`} />
+                <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${usarPlanoDiretor ? 'translate-x-4' : ''}`} />
+              </div>
+            </label>
+          </div>
+
+          {!usarPlanoDiretor && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-gray-50 rounded-lg p-3 text-xs text-gray-500">
+              <span>TO: {GENERIC_PLANO_DIRETOR.taxa_ocupacao}%</span>
+              <span>CA: {GENERIC_PLANO_DIRETOR.coeficiente_aproveitamento}</span>
+              <span>Gabarito: {GENERIC_PLANO_DIRETOR.num_pavimentos} pav.</span>
+              <span>Permeab.: {GENERIC_PLANO_DIRETOR.taxa_permeabilidade}%</span>
+              <span>R. Frontal: {GENERIC_PLANO_DIRETOR.recuo_frontal}m</span>
+              <span>R. Lateral: {GENERIC_PLANO_DIRETOR.recuo_lateral}m</span>
+              <span>R. Fundo: {GENERIC_PLANO_DIRETOR.recuo_fundo}m</span>
+            </div>
+          )}
+
+          {usarPlanoDiretor && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Taxa de Ocupação — TO (%)</label>
+                  <input type="number" name="taxa_ocupacao" value={formData.taxa_ocupacao} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="1" max="100" step="1" />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Coef. de Aproveitamento — CA</label>
+                  <input type="number" name="coeficiente_aproveitamento" value={formData.coeficiente_aproveitamento} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="0.1" max="20" step="0.1" />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Gabarito (nº de pavimentos)</label>
+                  <input type="number" name="num_pavimentos" value={formData.num_pavimentos} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="1" max="30" step="1" />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Taxa de Permeabilidade (%)</label>
+                  <input type="number" name="taxa_permeabilidade" value={formData.taxa_permeabilidade} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="0" max="99" step="1" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Recuo Frontal (m)</label>
+                  <input type="number" name="recuo_frontal" value={formData.recuo_frontal} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="0" step="0.5" />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Recuo Lateral (m)</label>
+                  <input type="number" name="recuo_lateral" value={formData.recuo_lateral} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="0" step="0.5" />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Recuo de Fundo (m)</label>
+                  <input type="number" name="recuo_fundo" value={formData.recuo_fundo} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="0" step="0.5" />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {error && (

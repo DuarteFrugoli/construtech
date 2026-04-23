@@ -19,10 +19,15 @@ def generate_house_plan_prompt(specs: HouseSpecs) -> str:
 
     Design an optimal floor plan layout for a house with these specifications:
     - Terrain dimensions: {specs.terrain_width}m × {specs.terrain_height}m
-    - Taxa de Ocupação: {specs.TAXA_OCUPACAO*100}% (target area: {specs.built_area:.0f} m²)
+    - Taxa de Ocupação: {specs.taxa_ocupacao*100:.0f}% (target area: {specs.built_area:.0f} m²)
+    - Coeficiente de Aproveitamento: {specs.coeficiente_aproveitamento:.1f} (max total floor area: {specs.total_area * specs.coeficiente_aproveitamento:.0f} m²)
+    - Gabarito máximo: {specs.num_pavimentos} pavimento(s) (this is a single-floor plan)
+    - Taxa mínima de Permeabilidade: {specs.taxa_permeabilidade*100:.0f}%
     - Bedrooms: {specs.num_bedrooms}
     - Bathrooms: {specs.num_bathrooms}
     - Style: [USER INPUT START]{specs.style}[USER INPUT END]
+    - Plano Diretor setbacks: Frontal={specs.recuo_frontal:.1f}m, Lateral={specs.recuo_lateral:.1f}m, Fundo={specs.recuo_fundo:.1f}m
+    - Usable area after setbacks: approx. {max(0, specs.terrain_width - specs.recuo_lateral*2):.1f}m × {max(0, specs.terrain_height - specs.recuo_frontal - specs.recuo_fundo):.1f}m
     
     CRITICAL REQUIREMENTS (in order of priority):
     1. NO ROOM OVERLAPPING - This is an absolute requirement. Rooms must be placed adjacent to each other without any overlap.

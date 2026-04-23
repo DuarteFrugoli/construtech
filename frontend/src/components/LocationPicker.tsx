@@ -22,6 +22,10 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect }) => 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
+  // Guarda sempre a versão mais recente do callback sem ser dependência do useEffect,
+  // evitando que o mapa seja recriado a cada re-render do componente pai.
+  const onLocationSelectRef = useRef(onLocationSelect);
+  useEffect(() => { onLocationSelectRef.current = onLocationSelect; }, [onLocationSelect]);
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
@@ -49,12 +53,12 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect }) => 
         );
         const data = await response.json();
         if (data.display_name) {
-          onLocationSelect(data.display_name);
+          onLocationSelectRef.current(data.display_name);
         } else {
-          onLocationSelect(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+          onLocationSelectRef.current(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
         }
       } catch {
-        onLocationSelect(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        onLocationSelectRef.current(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
       }
     });
 
@@ -65,7 +69,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect }) => 
       mapInstanceRef.current = null;
       markerRef.current = null;
     };
-  }, [onLocationSelect]);
+  }, []);  // sem dependências → mapa criado apenas uma vez
 
   return (
     <div className="w-full h-[400px] rounded-lg overflow-hidden shadow-lg">
