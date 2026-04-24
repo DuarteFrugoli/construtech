@@ -40,3 +40,5 @@ repomix-output.xml
 # Sistema operacional
 .DS_Store
 Thumbs.db
+src/outputs/
+debug_response.txt
