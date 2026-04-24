@@ -8,7 +8,7 @@ _STATIC_TRANSLATIONS = {
     "Kitchen": "Cozinha",
     "Dining Room": "Sala de Jantar",
     "Garage": "Garagem",
-    "Home Office": "Home Office",
+    "Escritório": "Escritório",
     "Dependência": "Dependência",
     "Varanda": "Varanda",
     "Lavabo": "Lavabo",

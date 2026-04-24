@@ -17,7 +17,7 @@ class RuleBasedLayoutGenerator:
         "Bathroom": (3.2, 5.5),
         "Dining Room": (10.0, 16.0),
         "Garage": (15.0, 20.0),
-        "Home Office": (7.0, 10.0),
+        "Escritório": (7.0, 10.0),
         "Dependência": (6.0, 9.0),
         "Varanda": (6.0, 12.0),
         "Lavabo": (1.8, 3.0),
@@ -33,7 +33,7 @@ class RuleBasedLayoutGenerator:
         "Bathroom": (1.4, 2.2),
         "Dining Room": (1.1, 1.6),
         "Garage": (1.6, 2.0),
-        "Home Office": (1.1, 1.4),
+        "Escritório": (1.1, 1.4),
         "Dependência": (1.1, 1.5),
         "Varanda": (2.0, 3.0),
         "Lavabo": (1.4, 2.0),
@@ -44,7 +44,7 @@ class RuleBasedLayoutGenerator:
     # ── Zone classification ───────────────────────────────────────────────────
     # Zones (fine-grained): social, circulation, bathroom, bedroom, private, service
     _SOCIAL_KEYWORDS   = {"living", "kitchen", "dining", "gourmet", "varanda", "lavabo"}
-    _SERVICE_KEYWORDS  = {"garage", "garagem", "serviço", "servico", "área de serviço", "area de servico"}
+    _SERVICE_KEYWORDS  = {"serviço", "servico", "área de serviço", "area de servico"}
 
     # Compatibility matrix — default for unknown pairs is 0.
     # Hard-incompatible pairs (bedroom↔social, bedroom↔bedroom) get large negatives
@@ -99,7 +99,7 @@ class RuleBasedLayoutGenerator:
             return "bedroom"
         if any(k in name for k in self._SOCIAL_KEYWORDS):
             return "social"
-        if any(k in name for k in ("home office", "dependência", "dependencia")):
+        if any(k in name for k in ("escritório", "escritorio", "dependência", "dependencia")):
             return "private"
         if any(k in name for k in self._SERVICE_KEYWORDS):
             return "service"
@@ -199,7 +199,7 @@ class RuleBasedLayoutGenerator:
             add_room("Garage")
 
         if specs.has_home_office:
-            add_room("Home Office")
+            add_room("Escritório")
 
         if specs.has_dependencia:
             add_room("Dependência")
@@ -589,6 +589,12 @@ class RuleBasedLayoutGenerator:
                                     (p.x, p.y + p.height),
                                     (p.x + p.width - room.width, p.y + p.height),
                                 ]
+                            # Also try right of private zone rooms to fill gaps next to corridor
+                            elif self._get_zone(p.name) in {"bedroom", "private"} and not self._is_suite_bathroom(p.name):
+                                corr_candidates += [
+                                    (p.x + p.width, p.y),
+                                    (p.x + p.width, p.y + p.height - room.height),
+                                ]
                         priority_groups.append(corr_candidates)
                     else:
                         # No corridor: prefer adjacent to social zone
@@ -649,6 +655,9 @@ class RuleBasedLayoutGenerator:
 
         def door_limit(room):
             if self._is_suite_bathroom(room.name) or self._is_social_bathroom(room.name):
+                return 1
+            # Garage gets exactly one interior door
+            if "garage" in room.name.lower() or "garagem" in room.name.lower():
                 return 1
             zone = self._get_zone(room.name)
             if zone == "bedroom":

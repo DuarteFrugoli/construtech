@@ -385,7 +385,7 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
               { name: 'has_kitchen',      label: 'Cozinha' },
               { name: 'has_dining_room',  label: 'Sala de Jantar' },
               { name: 'has_garage',       label: 'Garagem' },
-              { name: 'has_home_office',  label: 'Home Office' },
+              { name: 'has_home_office',  label: 'Escritório' },
               { name: 'has_dependencia',  label: 'Dependência' },
               { name: 'has_varanda',      label: 'Varanda' },
               { name: 'has_lavabo',       label: 'Lavabo' },

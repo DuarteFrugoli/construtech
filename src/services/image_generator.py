@@ -108,7 +108,7 @@ class HouseImageGenerator:
             if has_garage:
                 rooms_list.append("garage")
             if has_home_office:
-                rooms_list.append("home office")
+                rooms_list.append("escritório")
             if has_dependencia:
                 rooms_list.append("service quarters (dependência)")
             if has_varanda:
