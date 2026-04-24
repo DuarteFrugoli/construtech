@@ -8,12 +8,20 @@ interface HousePlanFormData {
   terrain_width: number;
   terrain_height: number;
   num_bedrooms: number;
-  num_bathrooms: number;
+  num_social_bathrooms: number;
+  num_suites: number;
   has_dining_room: boolean;
   has_garage: boolean;
+  has_living_room: boolean;
+  has_kitchen: boolean;
+  has_home_office: boolean;
+  has_dependencia: boolean;
+  has_varanda: boolean;
+  has_lavabo: boolean;
+  has_area_gourmet: boolean;
+  has_area_servico: boolean;
   style: string;
   address: string;
-  description_tecnica: string;
   description_estetica: string;
   // Plano Diretor
   taxa_ocupacao: number;              // percentual 0–100
@@ -55,12 +63,20 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
     terrain_width: 20,
     terrain_height: 30,
     num_bedrooms: 2,
-    num_bathrooms: 1,
+    num_social_bathrooms: 1,
+    num_suites: 0,
     has_dining_room: false,
     has_garage: false,
+    has_living_room: true,
+    has_kitchen: true,
+    has_home_office: false,
+    has_dependencia: false,
+    has_varanda: false,
+    has_lavabo: false,
+    has_area_gourmet: false,
+    has_area_servico: false,
     style: 'modern',
     address: '',
-    description_tecnica: '',
     description_estetica: '',
     ...GENERIC_PLANO_DIRETOR,
   });
@@ -77,10 +93,32 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : type === 'number' ? Number(value) : value
-    }));
+    setFormData(prev => {
+      const nextValue = type === 'checkbox'
+        ? (e.target as HTMLInputElement).checked
+        : type === 'number'
+          ? Number(value)
+          : value;
+
+      const next = {
+        ...prev,
+        [name]: nextValue,
+      } as HousePlanFormData;
+
+      if (name === 'num_bedrooms') {
+        next.num_suites = Math.min(next.num_suites, Number(nextValue));
+      }
+
+      if (name === 'num_suites') {
+        next.num_suites = Math.min(Number(nextValue), prev.num_bedrooms);
+      }
+
+      if (name === 'num_social_bathrooms') {
+        next.num_social_bathrooms = Math.max(0, Number(nextValue));
+      }
+
+      return next;
+    });
   };
 
   const handleLocationSelect = (address: string) => {
@@ -130,12 +168,20 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description_estetica: formData.description_estetica,
-          description_tecnica: formData.description_tecnica,
           terrain_data: currentTerrainData,
           num_bedrooms: formData.num_bedrooms,
-          num_bathrooms: formData.num_bathrooms,
+          num_social_bathrooms: formData.num_social_bathrooms,
+          num_suites: formData.num_suites,
           has_garage: formData.has_garage,
           has_dining_room: formData.has_dining_room,
+          has_living_room: formData.has_living_room,
+          has_kitchen: formData.has_kitchen,
+          has_home_office: formData.has_home_office,
+          has_dependencia: formData.has_dependencia,
+          has_varanda: formData.has_varanda,
+          has_lavabo: formData.has_lavabo,
+          has_area_gourmet: formData.has_area_gourmet,
+          has_area_servico: formData.has_area_servico,
           style: formData.style,
           num_pavimentos: formData.num_pavimentos,
           terrain_width: formData.terrain_width,
@@ -174,9 +220,18 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           terrain_width: formData.terrain_width,
           terrain_height: formData.terrain_height,
           num_bedrooms: formData.num_bedrooms,
-          num_bathrooms: formData.num_bathrooms,
+          num_social_bathrooms: formData.num_social_bathrooms,
+          num_suites: formData.num_suites,
           has_dining_room: formData.has_dining_room,
           has_garage: formData.has_garage,
+          has_living_room: formData.has_living_room,
+          has_kitchen: formData.has_kitchen,
+          has_home_office: formData.has_home_office,
+          has_dependencia: formData.has_dependencia,
+          has_varanda: formData.has_varanda,
+          has_lavabo: formData.has_lavabo,
+          has_area_gourmet: formData.has_area_gourmet,
+          has_area_servico: formData.has_area_servico,
           style: formData.style,
           taxa_ocupacao: formData.taxa_ocupacao / 100,
           coeficiente_aproveitamento: formData.coeficiente_aproveitamento,
@@ -185,7 +240,6 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           recuo_fundo: formData.recuo_fundo,
           num_pavimentos: formData.num_pavimentos,
           taxa_permeabilidade: formData.taxa_permeabilidade / 100,
-          description_tecnica: formData.description_tecnica,
         })
       });
 
@@ -255,14 +309,28 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">Número de Banheiros</label>
+            <label className="block text-sm font-semibold text-gray-700">Número de Suítes</label>
             <input
               type="number"
-              name="num_bathrooms"
-              value={formData.num_bathrooms}
+              name="num_suites"
+              value={formData.num_suites}
               onChange={handleInputChange}
               className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors px-4 py-3"
-              min="1"
+              min="0"
+              max={formData.num_bedrooms}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-700">Banheiros Sociais</label>
+            <input
+              type="number"
+              name="num_social_bathrooms"
+              value={formData.num_social_bathrooms}
+              onChange={handleInputChange}
+              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors px-4 py-3"
+              min="0"
               required
             />
           </div>
@@ -295,19 +363,6 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">Requisitos Técnicos — para a planta</label>
-            <p className="text-xs text-gray-400">Ambientes especiais, espaços funcionais, necessidades de engenharia</p>
-            <textarea
-              name="description_tecnica"
-              value={formData.description_tecnica}
-              onChange={handleInputChange}
-              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors px-4 py-3"
-              placeholder="Ex: dependência, escritório em casa, varanda gourmet, quarto master suite, acessibilidade..."
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">Preferências Estéticas — para a visualização 3D</label>
             <p className="text-xs text-gray-400">Fachada, materiais, estilo visual, referências arquitetônicas</p>
             <textarea
@@ -321,27 +376,33 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           </div>
         </div>
 
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              name="has_dining_room"
-              checked={formData.has_dining_room}
-              onChange={handleInputChange}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label className="ml-2 block text-sm text-gray-700">Sala de Jantar</label>
-          </div>
-
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              name="has_garage"
-              checked={formData.has_garage}
-              onChange={handleInputChange}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label className="ml-2 block text-sm text-gray-700">Garagem</label>
+        {/* Cômodos */}
+        <div className="border border-gray-200 rounded-lg p-5 space-y-3">
+          <h3 className="text-sm font-semibold text-gray-700">Cômodos</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {([
+              { name: 'has_living_room',  label: 'Sala de Estar' },
+              { name: 'has_kitchen',      label: 'Cozinha' },
+              { name: 'has_dining_room',  label: 'Sala de Jantar' },
+              { name: 'has_garage',       label: 'Garagem' },
+              { name: 'has_home_office',  label: 'Home Office' },
+              { name: 'has_dependencia',  label: 'Dependência' },
+              { name: 'has_varanda',      label: 'Varanda' },
+              { name: 'has_lavabo',       label: 'Lavabo' },
+              { name: 'has_area_gourmet', label: 'Área Gourmet' },
+              { name: 'has_area_servico', label: 'Área de Serviço' },
+            ] as const).map(({ name, label }) => (
+              <div key={name} className="flex items-center">
+                <input
+                  type="checkbox"
+                  name={name}
+                  checked={formData[name]}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label className="ml-2 block text-sm text-gray-700">{label}</label>
+              </div>
+            ))}
           </div>
         </div>
 

@@ -11,13 +11,44 @@ class AIResponseConverter:
     def __init__(self):
         self.rule_generator = RuleBasedLayoutGenerator()
 
+    def _normalize_room_name(
+        self,
+        name: str,
+        specs: HouseSpecs,
+        suite_bathroom_count: int,
+        social_bathroom_count: int,
+    ) -> tuple[str, int, int]:
+        lower_name = name.lower()
+        if "bathroom" not in lower_name:
+            return name, suite_bathroom_count, social_bathroom_count
+
+        if "suite" in lower_name or "master bathroom" in lower_name:
+            normalized = self.rule_generator._suite_bathroom_name(suite_bathroom_count)
+            return normalized, suite_bathroom_count + 1, social_bathroom_count
+
+        if suite_bathroom_count < specs.num_suites:
+            normalized = self.rule_generator._suite_bathroom_name(suite_bathroom_count)
+            return normalized, suite_bathroom_count + 1, social_bathroom_count
+
+        social_bathroom_count += 1
+        normalized = f"Bathroom {social_bathroom_count}" if specs.num_social_bathrooms > 1 else "Bathroom"
+        return normalized, suite_bathroom_count, social_bathroom_count
+
     def convert_response_to_rooms(self, layout_data: Dict, specs: HouseSpecs) -> List[Room]:
         """Convert AI response to Room objects"""
         rooms = []
         total_ai_area = 0
+        suite_bathroom_count = 0
+        social_bathroom_count = 0
 
         for room_data in layout_data.get("rooms", []):
             name = room_data.get("name", "Room")
+            name, suite_bathroom_count, social_bathroom_count = self._normalize_room_name(
+                name,
+                specs,
+                suite_bathroom_count,
+                social_bathroom_count,
+            )
             width = room_data.get("width", 0)
             height = room_data.get("height", 0)
             if not width or not height:

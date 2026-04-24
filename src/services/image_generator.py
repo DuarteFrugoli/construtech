@@ -67,17 +67,25 @@ class HouseImageGenerator:
             address = terrain_data.get("address", "unknown")
 
             num_bedrooms = plan_context.get("num_bedrooms", 1)
-            num_bathrooms = plan_context.get("num_bathrooms", 1)
+            num_social_bathrooms = plan_context.get("num_social_bathrooms", 1)
+            num_suites = plan_context.get("num_suites", 0)
+            num_bathrooms = plan_context.get("num_bathrooms", num_social_bathrooms + num_suites)
             has_garage = plan_context.get("has_garage", False)
             has_dining_room = plan_context.get("has_dining_room", False)
+            has_living_room = plan_context.get("has_living_room", True)
+            has_kitchen = plan_context.get("has_kitchen", True)
+            has_home_office = plan_context.get("has_home_office", False)
+            has_dependencia = plan_context.get("has_dependencia", False)
+            has_varanda = plan_context.get("has_varanda", False)
+            has_lavabo = plan_context.get("has_lavabo", False)
+            has_area_gourmet = plan_context.get("has_area_gourmet", False)
+            has_area_servico = plan_context.get("has_area_servico", False)
             style = plan_context.get("style", "modern")
             num_pavimentos = plan_context.get("num_pavimentos", 1)
             terrain_width = plan_context.get("terrain_width", 0.0)
             terrain_height = plan_context.get("terrain_height", 0.0)
             recuo_frontal = plan_context.get("recuo_frontal", 3.0)
-            description_tecnica = plan_context.get("description_tecnica", "")
             room_layout: List[Dict] = plan_context.get("room_layout", [])
-
             style_labels = {
                 "modern": "modern minimalist",
                 "traditional": "traditional Brazilian",
@@ -85,11 +93,32 @@ class HouseImageGenerator:
             }
             style_label = style_labels.get(style, style)
 
-            rooms_list = [f"{num_bedrooms} bedroom(s)", f"{num_bathrooms} bathroom(s)"]
+            rooms_list = [
+                f"{num_bedrooms} bedroom(s)",
+                f"{num_bathrooms} bathroom(s) total",
+                f"{num_suites} suite(s)",
+                f"{num_social_bathrooms} social bathroom(s)",
+            ]
+            if has_living_room:
+                rooms_list.append("living room")
+            if has_kitchen:
+                rooms_list.append("kitchen")
             if has_dining_room:
                 rooms_list.append("dining room")
             if has_garage:
                 rooms_list.append("garage")
+            if has_home_office:
+                rooms_list.append("home office")
+            if has_dependencia:
+                rooms_list.append("service quarters (dependência)")
+            if has_varanda:
+                rooms_list.append("covered porch (varanda)")
+            if has_lavabo:
+                rooms_list.append("powder room (lavabo)")
+            if has_area_gourmet:
+                rooms_list.append("outdoor gourmet area")
+            if has_area_servico:
+                rooms_list.append("laundry/service area")
             rooms_desc = ", ".join(rooms_list)
 
             # Spatial description from actual generated layout
@@ -110,12 +139,6 @@ class HouseImageGenerator:
                 prompt += (
                     f"The floor plan has the following spatial layout: {spatial_desc}. "
                     f"The exterior massing and façade composition must reflect this arrangement. "
-                )
-
-            if description_tecnica.strip():
-                prompt += (
-                    f"Functional spaces visible from exterior: "
-                    f"[USER INPUT START]{description_tecnica}[USER INPUT END]. "
                 )
 
             if description_estetica.strip():

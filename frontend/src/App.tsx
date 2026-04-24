@@ -1,4 +1,3 @@
-import React from 'react'
 import HousePlanForm from './components/HousePlanForm'
 
 function App() {
@@ -37,7 +36,7 @@ function App() {
               Customize every aspect of your future home with just a few clicks.
             </p>
           </div>
-          <HousePlanForm onGenerate={handleGenerate} />
+          <HousePlanForm onSubmit={handleGenerate} />
         </div>
       </main>
 

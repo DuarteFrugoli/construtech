@@ -30,6 +30,8 @@ class SVGHousePlanGenerator:
             f"{TRANSLATIONS['Built Area']}: {specs.built_area:.0f} m²",
             f"{TRANSLATIONS['Total Area']}: {specs.total_area:.0f} m²",
             f"{TRANSLATIONS['Bedrooms']}: {specs.num_bedrooms}",
+            f"{TRANSLATIONS['Suites']}: {specs.num_suites}",
+            f"{TRANSLATIONS['Social Bathrooms']}: {specs.num_social_bathrooms}",
             f"{TRANSLATIONS['Bathrooms']}: {specs.num_bathrooms}",
             f"{TRANSLATIONS['Style']}: {TRANSLATIONS.get(specs.style.title(), specs.style.title())}"
         ]
