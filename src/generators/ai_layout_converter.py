@@ -1,5 +1,5 @@
-import math
 import logging
+import math
 from typing import Dict, List
 from core.models import Room, HouseSpecs
 from generators.rule_based_generator import RuleBasedLayoutGenerator
@@ -22,14 +22,12 @@ class AIResponseConverter:
         if "bathroom" not in lower_name:
             return name, suite_bathroom_count, social_bathroom_count
 
+        # Only treat as suite bathroom if explicitly named so
         if "suite" in lower_name or "master bathroom" in lower_name:
             normalized = self.rule_generator._suite_bathroom_name(suite_bathroom_count)
             return normalized, suite_bathroom_count + 1, social_bathroom_count
 
-        if suite_bathroom_count < specs.num_suites:
-            normalized = self.rule_generator._suite_bathroom_name(suite_bathroom_count)
-            return normalized, suite_bathroom_count + 1, social_bathroom_count
-
+        # Everything else is a social bathroom
         social_bathroom_count += 1
         normalized = f"Bathroom {social_bathroom_count}" if specs.num_social_bathrooms > 1 else "Bathroom"
         return normalized, suite_bathroom_count, social_bathroom_count
@@ -37,7 +35,6 @@ class AIResponseConverter:
     def convert_response_to_rooms(self, layout_data: Dict, specs: HouseSpecs) -> List[Room]:
         """Convert AI response to Room objects"""
         rooms = []
-        total_ai_area = 0
         suite_bathroom_count = 0
         social_bathroom_count = 0
 
@@ -55,36 +52,28 @@ class AIResponseConverter:
                 logger.warning(f"Skipping room with missing dimensions: {room_data}")
                 continue
             room = Room(name=name, width=float(width), height=float(height), x=0, y=0)
-            total_ai_area += room.area
             rooms.append(room)
 
         if not rooms:
             logger.warning("No valid rooms from AI response. Falling back to rule-based.")
             return self.rule_generator.generate_layout(specs)
 
-        if total_ai_area > 0:
-            max_room_width = max(room.width for room in rooms)
-            max_room_height = max(room.height for room in rooms)
+        # Safety scale: if the sum of private-zone widths exceeds the usable width,
+        # scale ALL rooms down so they can fit side-by-side in the private zone.
+        is_portrait = specs.terrain_height >= specs.terrain_width
+        usable_w = max(1.0, specs.terrain_width  - specs.recuo_lateral * 2)
+        usable_h = max(1.0, specs.terrain_height - specs.recuo_frontal - specs.recuo_fundo)
+        width_axis = usable_w if is_portrait else usable_h
 
-            width_scale = (specs.terrain_width * 0.95) / max_room_width
-            height_scale = (specs.terrain_height * 0.95) / max_room_height
-            terrain_scale = min(width_scale, height_scale)
-
-            target_scale = math.sqrt(specs.built_area / total_ai_area)
-            scale_factor = min(terrain_scale, target_scale)
-
-            if scale_factor == terrain_scale:
-                test_area = total_ai_area * (terrain_scale ** 2)
-                test_percentage = (test_area / specs.total_area) * 100
-                if test_percentage < specs.taxa_ocupacao * 100 - 7:
-                    scale_factor = min(
-                        math.sqrt((specs.built_area * 0.97) / total_ai_area),
-                        terrain_scale
-                    )
-
-            for room in rooms:
-                room.width *= scale_factor
-                room.height *= scale_factor
+        private_rooms = [r for r in rooms
+                         if self.rule_generator._get_zone(r.name) in {"bedroom", "bathroom"}]
+        private_widths_sum = sum(r.width for r in private_rooms)
+        if private_widths_sum > width_axis:
+            scale = width_axis / private_widths_sum
+            for r in rooms:
+                r.width  *= scale
+                r.height *= scale
+            logger.info(f"AI rooms scaled by {scale:.3f} to fit private zone within {width_axis:.1f}m.")
 
         return self.rule_generator._position_rooms(rooms, specs)
 

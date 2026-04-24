@@ -83,12 +83,6 @@ class RuleBasedLayoutGenerator:
         ("private",     "service"):      -2,
         ("service",     "private"):      -2,
     }
-    # Threshold below which a position is considered architecturally unacceptable.
-    # The algorithm will still use it as last resort if nothing better exists.
-    _INCOMPATIBLE_THRESHOLD = -4
-
-    _ZONE_ORDER = {"social": 0, "circulation": 1, "bedroom": 2, "bathroom": 3, "private": 4, "service": 5}
-
     def _get_zone(self, room_name: str) -> str:
         """Classify a room into a fine-grained functional zone."""
         name = room_name.lower()
@@ -99,6 +93,9 @@ class RuleBasedLayoutGenerator:
         if "bathroom" in name or name == "lavabo":
             return "bathroom"
         if "bedroom" in name:
+            return "bedroom"
+        # Named suites (e.g. "Suite 2") are bedroom zone
+        if name.startswith("suite ") and "bathroom" not in name:
             return "bedroom"
         if any(k in name for k in self._SOCIAL_KEYWORDS):
             return "social"
@@ -112,7 +109,7 @@ class RuleBasedLayoutGenerator:
         return f"Suite Bathroom {suite_index + 1}"
 
     def _is_suite_bathroom(self, room_name: str) -> bool:
-        return room_name.startswith("Suite Bathroom ")
+        return room_name == "Suite Bathroom" or room_name.startswith("Suite Bathroom ")
 
     def _is_social_bathroom(self, room_name: str) -> bool:
         return self._get_zone(room_name) == "bathroom" and not self._is_suite_bathroom(room_name)
@@ -122,25 +119,16 @@ class RuleBasedLayoutGenerator:
             return 0
         if room_name == "Bedroom":
             return 0
-        if room_name.startswith("Bedroom "):
-            return int(room_name.split(" ")[-1]) - 1
+        if room_name == "Suite Bathroom":
+            return 0
         if room_name.startswith("Suite Bathroom "):
             return int(room_name.split(" ")[-1]) - 1
+        # Named suite bedrooms (e.g. "Suite 2")
+        if room_name.startswith("Suite "):
+            return int(room_name.split(" ")[-1]) - 1
+        if room_name.startswith("Bedroom "):
+            return int(room_name.split(" ")[-1]) - 1
         return None
-
-    def _build_private_sequence(
-        self,
-        bedrooms: List[Room],
-        suite_bathrooms: List[Room],
-        social_bathrooms: List[Room],
-        private: List[Room],
-    ) -> List[Room]:
-        sequence: List[Room] = []
-        for bedroom in bedrooms:
-            sequence.append(bedroom)
-        sequence.extend(social_bathrooms)
-        sequence.extend(private)
-        return sequence
 
     def _interpolate(self, value_range: Tuple[float, float], bias: float) -> float:
         low, high = value_range
@@ -174,20 +162,6 @@ class RuleBasedLayoutGenerator:
             width, height = self._room_dimensions(size_name or room_name, specs)
             rooms.append(Room(room_name, width, height, 0, 0))
 
-        terrain_ratio = specs.terrain_width / specs.terrain_height
-        
-        if terrain_ratio > 1.5:
-            house_width = specs.terrain_width * 0.8
-            house_height = specs.built_area / house_width
-        elif terrain_ratio < 0.67:
-            house_height = specs.terrain_height * 0.8
-            house_width = specs.built_area / house_height
-        else:
-            house_width = math.sqrt(specs.built_area) * 0.9
-            house_height = specs.built_area / house_width
-
-        logger.debug(f"Initial house dimensions: {house_width:.0f} x {house_height:.0f}")
-
         if specs.has_living_room:
             add_room("Living Room")
 
@@ -198,6 +172,10 @@ class RuleBasedLayoutGenerator:
             if i == 0 and specs.num_bedrooms > 1:
                 name = "Master Bedroom"
                 size_name = "Master Bedroom"
+            elif i > 0 and i < specs.num_suites:
+                # Bedrooms with a suite bathroom get a suite name
+                name = f"Suite {i + 1}"
+                size_name = "Bedroom"
             else:
                 name = f"Bedroom {i+1}" if specs.num_bedrooms > 1 else "Bedroom"
                 size_name = "Bedroom"
@@ -208,9 +186,11 @@ class RuleBasedLayoutGenerator:
             name = f"Bathroom {i+1}" if specs.num_social_bathrooms > 1 else "Bathroom"
             add_room(name, "Bathroom")
 
-        # Add suite bathrooms attached to the first N bedrooms.
+        # Add suite bathrooms attached to the first N bedrooms, in landscape orientation.
         for i in range(specs.num_suites):
-            add_room(self._suite_bathroom_name(i), "Bathroom")
+            name = "Suite Bathroom" if specs.num_suites == 1 else self._suite_bathroom_name(i)
+            w, h = self._room_dimensions("Bathroom", specs)
+            rooms.append(Room(name, max(w, h), min(w, h), 0, 0))
         
         if specs.has_dining_room:
             add_room("Dining Room")
@@ -236,23 +216,58 @@ class RuleBasedLayoutGenerator:
         if specs.has_area_servico:
             add_room("Área de Serviço")
         
-        # Treat built_area as an upper envelope, not a mandatory fill target.
-        # We still upscale moderately so the footprint does not look undersized on larger lots.
-        total_room_area = sum(room.area for room in rooms)
-        corridor_area = 0.0
-        room_area_budget = max(specs.built_area - corridor_area, 0.0)
-        if total_room_area > 0:
-            if total_room_area > room_area_budget > 0:
-                target_area = room_area_budget
-            else:
-                target_area = min(
-                    room_area_budget or total_room_area,
-                    max(total_room_area * 1.35, (room_area_budget or total_room_area) * 0.45),
-                )
-            scale_factor = math.sqrt(target_area / total_room_area) if target_area > 0 else 1.0
+        # Scale only the "depth" dimension (height for portrait, width for landscape)
+        # so the house fills ~88% of the usable terrain depth.
+        # Widths are left untouched so social rooms continue to fit side-by-side.
+        is_portrait_gs = specs.terrain_height >= specs.terrain_width
+        if is_portrait_gs:
+            depth_usable = specs.terrain_height - specs.recuo_frontal - specs.recuo_fundo
+            nat_social_depth  = max((r.height for r in rooms if self._get_zone(r.name) == 'social'),  default=0.0)
+            nat_private_depth = max((r.height for r in rooms if self._get_zone(r.name) == 'bedroom'), default=0.0)
+        else:
+            depth_usable = specs.terrain_width - specs.recuo_frontal - specs.recuo_fundo
+            nat_social_depth  = max((r.width for r in rooms if self._get_zone(r.name) == 'social'),  default=0.0)
+            nat_private_depth = max((r.width for r in rooms if self._get_zone(r.name) == 'bedroom'), default=0.0)
+
+        nat_house_depth = nat_social_depth + 1.2 + nat_private_depth  # 1.2 m corridor
+        if nat_house_depth > 0 and depth_usable > nat_house_depth:
+            depth_scale = min(1.5, depth_usable * 0.88 / nat_house_depth)
             for room in rooms:
-                room.width *= scale_factor
-                room.height *= scale_factor
+                if is_portrait_gs:
+                    room.height *= depth_scale
+                else:
+                    room.width *= depth_scale
+
+        # Enforce minimum dimensions so rooms remain architecturally valid
+        # even on small terrains where the scale factor compressed everything.
+        _MIN_DIM = {
+            "Living Room":    (3.0, 3.5),
+            "Kitchen":        (2.4, 2.8),
+            "Master Bedroom": (3.0, 3.2),
+            "Bedroom":        (2.5, 2.8),
+            "Bathroom":       (1.5, 2.2),
+            "Dining Room":    (2.5, 3.0),
+            "Garage":         (2.8, 5.0),
+        }
+        for room in rooms:
+            # Find the applicable min key (handles "Suite 2", "Bedroom 3", etc.)
+            min_key = room.name
+            if room.name not in _MIN_DIM:
+                if "bedroom" in room.name.lower() or "suite" in room.name.lower() and "bathroom" not in room.name.lower():
+                    min_key = "Master Bedroom" if "master" in room.name.lower() else "Bedroom"
+                elif "bathroom" in room.name.lower():
+                    min_key = "Bathroom"
+            if min_key in _MIN_DIM:
+                min_short, min_long = _MIN_DIM[min_key]
+                short = min(room.width, room.height)
+                long_ = max(room.width, room.height)
+                was_portrait = room.height >= room.width
+                short = max(short, min_short)
+                long_ = max(long_, min_long)
+                if was_portrait:
+                    room.width, room.height = short, long_
+                else:
+                    room.width, room.height = long_, short
 
         logger.debug(
             f"Final area: {sum(r.area for r in rooms):.0f} m² "
@@ -261,14 +276,19 @@ class RuleBasedLayoutGenerator:
 
         # Add corridor after scaling using the frontage actually needed by the rooms
         # that should open onto it, rather than stretching it across the full strip.
-        if specs.num_bedrooms >= 2:
+        # A corridor is needed whenever there are bedrooms AND a social bathroom
+        # (regardless of bedroom count) so the social bathroom always has a valid exit.
+        needs_corridor = specs.num_bedrooms >= 2 or (
+            specs.num_bedrooms >= 1 and specs.num_social_bathrooms >= 1
+        )
+        if needs_corridor:
             corridor_width = 1.2
             corridor_frontage_rooms = [
                 room for room in rooms
                 if self._get_zone(room.name) in {"bedroom", "private"}
+                or self._is_social_bathroom(room.name)
+                or self._is_suite_bathroom(room.name)
             ]
-            social_bathrooms = [room for room in rooms if self._is_social_bathroom(room.name)]
-            corridor_frontage_rooms.extend(social_bathrooms)
             frontage_dimension = (
                 sum(room.width for room in corridor_frontage_rooms)
                 if specs.terrain_height >= specs.terrain_width
@@ -423,48 +443,69 @@ class RuleBasedLayoutGenerator:
             return False
 
         def place_suite_bathroom(room, bedroom, zone_x, zone_y, zone_w, zone_h, portrait):
-            if portrait:
-                candidates = [
-                    (bedroom.x, bedroom.y + bedroom.height),
-                    (bedroom.x + bedroom.width - room.width, bedroom.y + bedroom.height),
-                    (bedroom.x + bedroom.width, bedroom.y),
-                    (bedroom.x - room.width, bedroom.y),
-                ]
-            else:
-                candidates = [
-                    (bedroom.x + bedroom.width, bedroom.y),
-                    (bedroom.x + bedroom.width, bedroom.y + bedroom.height - room.height),
-                    (bedroom.x, bedroom.y + bedroom.height),
-                    (bedroom.x, bedroom.y - room.height),
-                ]
+            # Try positions adjacent to the bedroom in preference order.
+            # Also try with the room rotated 90° so narrow terrains have more options.
+            def candidates_for(r):
+                if portrait:
+                    return [
+                        (bedroom.x + bedroom.width, bedroom.y),
+                        (bedroom.x + bedroom.width, bedroom.y + bedroom.height - r.height),
+                        (bedroom.x - r.width, bedroom.y),
+                        (bedroom.x - r.width, bedroom.y + bedroom.height - r.height),
+                        (bedroom.x, bedroom.y + bedroom.height),
+                        (bedroom.x + bedroom.width - r.width, bedroom.y + bedroom.height),
+                        (bedroom.x, bedroom.y - r.height),
+                    ]
+                else:
+                    return [
+                        (bedroom.x + bedroom.width, bedroom.y),
+                        (bedroom.x + bedroom.width, bedroom.y + bedroom.height - r.height),
+                        (bedroom.x, bedroom.y + bedroom.height),
+                        (bedroom.x + bedroom.width - r.width, bedroom.y + bedroom.height),
+                        (bedroom.x - r.width, bedroom.y),
+                        (bedroom.x, bedroom.y - r.height),
+                    ]
 
-            for x, y in candidates:
-                if x < zone_x - EPS or y < zone_y - EPS:
-                    continue
-                if x + room.width > zone_x + zone_w + EPS or y + room.height > zone_y + zone_h + EPS:
-                    continue
-                if overlaps_existing(room, x, y):
-                    continue
-                room.x = x
-                room.y = y
-                placed.append(room)
-                return True
+            for rotated in (False, True):
+                if rotated:
+                    room.width, room.height = room.height, room.width
+                for x, y in candidates_for(room):
+                    if x < zone_x - EPS or y < zone_y - EPS:
+                        continue
+                    if x + room.width > zone_x + zone_w + EPS or y + room.height > zone_y + zone_h + EPS:
+                        continue
+                    if overlaps_existing(room, x, y):
+                        continue
+                    room.x = x
+                    room.y = y
+                    placed.append(room)
+                    return True
 
             logger.warning(f"Could not place suite bathroom '{room.name}' adjacent to '{bedroom.name}'.")
             return False
 
         # ── Main layout ───────────────────────────────────────────────────────
-        private_all = self._build_private_sequence(bedrooms, suite_bathrooms, social_bathrooms, private)
+        # Bedrooms first, then other private rooms (e.g. home office).
+        # Suite and social bathrooms are placed separately after pack_rows.
+        private_all = bedrooms + private
+        # strip_span is the full usable width (portrait) or height (landscape).
+        # We no longer clip it to corridor_length so rooms spread across the terrain.
         strip_span = W if is_portrait else H
-        if corridor:
-            corridor_length = max(corridor[0].width, corridor[0].height)
-            social_min_span = max(
-                (room.width if is_portrait else room.height) for room in social
-            ) if social else 0.0
-            strip_span = min(strip_span, max(corridor_length, social_min_span))
 
         if is_portrait:
             # Social zone → corridor band → private zone → service
+            # Cap each social room's width so the social zone fills the strip in
+            # two columns (living room beside kitchen) rather than one tall column.
+            # Target: each room takes at most 60% of the strip width so the next
+            # room wraps beside it rather than below it.
+            # Safety cap: no single room should be wider than the strip.
+            # With scale_factor ≤ 1.0 this rarely triggers, but keeps things
+            # safe if, say, a living room is already larger than the strip.
+            for r in social:
+                if r.width > strip_span + EPS:
+                    r.height *= r.width / strip_span
+                    r.width = strip_span
+
             social_end = pack_rows(social, x0, y0, strip_span, H)
 
             if corridor:
@@ -503,13 +544,14 @@ class RuleBasedLayoutGenerator:
             if service and svc_w > 0.5:
                 pack_cols(service, priv_end, y0, svc_w, strip_span)
 
+        zone_x, zone_y, zone_w, zone_h = private_zone
+
         if suite_bathrooms:
             suite_bedrooms = {
                 self._suite_index(room.name): room
                 for room in bedrooms
                 if self._suite_index(room.name) is not None
             }
-            zone_x, zone_y, zone_w, zone_h = private_zone
             for suite_bathroom in suite_bathrooms:
                 suite_index = self._suite_index(suite_bathroom.name)
                 bedroom = suite_bedrooms.get(suite_index)
@@ -517,6 +559,86 @@ class RuleBasedLayoutGenerator:
                     logger.warning(f"Could not find matching suite bedroom for '{suite_bathroom.name}'.")
                     continue
                 place_suite_bathroom(suite_bathroom, bedroom, zone_x, zone_y, zone_w, zone_h, is_portrait)
+
+        # Place social bathrooms AFTER suite bathrooms so they fill remaining space
+        # and never block the suite bathroom from sitting next to its bedroom.
+        if social_bathrooms:
+            def place_social_bath(room):
+                """Place social bathroom adjacent to corridor (preferred) or social zone.
+                Never place it next to a suite bathroom — that's architecturally wrong."""
+                for rotated in (False, True):
+                    if rotated:
+                        room.width, room.height = room.height, room.width
+
+                    # Priority 1: adjacent to corridor
+                    # Priority 2 (no corridor): adjacent to social zone rooms
+                    # Priority 3 (last resort): adjacent to bedroom/private (but NEVER suite bathroom)
+                    priority_groups = []
+
+                    if corridor:
+                        corr_candidates = []
+                        for p in placed:
+                            if self._get_zone(p.name) == "circulation":
+                                corr_candidates += [
+                                    (p.x + p.width, p.y),
+                                    (p.x + p.width, p.y + p.height - room.height),
+                                    (p.x - room.width, p.y),
+                                    (p.x - room.width, p.y + p.height - room.height),
+                                    (p.x, p.y - room.height),
+                                    (p.x + p.width - room.width, p.y - room.height),
+                                    (p.x, p.y + p.height),
+                                    (p.x + p.width - room.width, p.y + p.height),
+                                ]
+                        priority_groups.append(corr_candidates)
+                    else:
+                        # No corridor: prefer adjacent to social zone
+                        social_candidates = []
+                        for p in placed:
+                            if self._get_zone(p.name) == "social":
+                                social_candidates += [
+                                    (p.x + p.width, p.y),
+                                    (p.x + p.width, p.y + p.height - room.height),
+                                    (p.x - room.width, p.y),
+                                    (p.x - room.width, p.y + p.height - room.height),
+                                    (p.x, p.y - room.height),
+                                    (p.x + p.width - room.width, p.y - room.height),
+                                    (p.x, p.y + p.height),
+                                    (p.x + p.width - room.width, p.y + p.height),
+                                ]
+                        priority_groups.append(social_candidates)
+                        # Fallback: adjacent to bedroom/private, NOT suite bathroom
+                        fallback_candidates = []
+                        for p in placed:
+                            p_zone = self._get_zone(p.name)
+                            if p_zone in {"bedroom", "private"} and not self._is_suite_bathroom(p.name):
+                                fallback_candidates += [
+                                    (p.x + p.width, p.y),
+                                    (p.x + p.width, p.y + p.height - room.height),
+                                    (p.x, p.y + p.height),
+                                    (p.x + p.width - room.width, p.y + p.height),
+                                ]
+                        priority_groups.append(fallback_candidates)
+
+                    for candidates in priority_groups:
+                        candidates.sort(key=lambda pt: (round(pt[1], 1), pt[0]))
+                        for x, y in candidates:
+                            # When no corridor the bathroom can sit in the social zone boundary too
+                            min_y = y0 if not corridor else zone_y
+                            if y < min_y - EPS or y + room.height > ymax + EPS:
+                                continue
+                            if x < x0 - EPS or x + room.width > xmax + EPS:
+                                continue
+                            if overlaps_existing(room, x, y):
+                                continue
+                            room.x, room.y = x, y
+                            placed.append(room)
+                            return True
+
+                logger.warning(f"Could not place social bathroom '{room.name}' in private zone.")
+                return False
+
+            for sb in social_bathrooms:
+                place_social_bath(sb)
 
         # ── Add doors between adjacent compatible rooms ────────────────────────
         door_size = min(W, H) * 0.08
@@ -539,9 +661,7 @@ class RuleBasedLayoutGenerator:
             zone1 = self._get_zone(room1.name)
             zone2 = self._get_zone(room2.name)
 
-            if self._ZONE_COMPATIBILITY.get((zone1, zone2), 0) < 0:
-                return False
-
+            # Door-limit check first (applies to all room types)
             limit1 = door_limit(room1)
             if limit1 is not None and len(room1.doors) >= limit1:
                 return False
@@ -549,6 +669,7 @@ class RuleBasedLayoutGenerator:
             if limit2 is not None and len(room2.doors) >= limit2:
                 return False
 
+            # Suite bathrooms: only connect to their matched bedroom (override zone compat)
             if self._is_suite_bathroom(room1.name) or self._is_suite_bathroom(room2.name):
                 return (
                     zone1 == "bedroom"
@@ -560,10 +681,16 @@ class RuleBasedLayoutGenerator:
                     and self._suite_index(room1.name) == self._suite_index(room2.name)
                 )
 
+            # Social bathrooms: connect to corridor (preferred) or social zone when no corridor
+            # This must be checked BEFORE zone-compatibility to allow social↔bathroom pairing.
             if self._is_social_bathroom(room1.name) or self._is_social_bathroom(room2.name):
                 if corridor:
                     return "circulation" in {zone1, zone2}
                 return "social" in {zone1, zone2}
+
+            # General zone compatibility for all other room pairs
+            if self._ZONE_COMPATIBILITY.get((zone1, zone2), 0) < 0:
+                return False
 
             if zone1 == "bedroom" and zone2 == "bedroom":
                 return False

@@ -30,6 +30,8 @@ _STATIC_TRANSLATIONS = {
     "Lateral of House": "Laterais da Casa",
     "Hall": "Hall",
     "Corridor": "Corredor",
+    "Suite Bathroom": "Banheiro da Suíte",
+    "Suite": "Suíte",
 }
 
 
@@ -37,7 +39,12 @@ def translate(name: str) -> str:
     """Translate a room name, handling dynamic numbered variants like 'Bedroom 4'."""
     if name in _STATIC_TRANSLATIONS:
         return _STATIC_TRANSLATIONS[name]
-    for prefix, pt in (("Bedroom ", "Quarto "), ("Bathroom ", "Banheiro "), ("Suite Bathroom ", "Banheiro da Suíte ")):
+    for prefix, pt in (
+        ("Suite Bathroom ", "Banheiro da Suíte "),  # must precede "Suite "
+        ("Suite ", "Suíte "),
+        ("Bedroom ", "Quarto "),
+        ("Bathroom ", "Banheiro "),
+    ):
         if name.startswith(prefix):
             return pt + name[len(prefix):]
     return name

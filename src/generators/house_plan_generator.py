@@ -5,7 +5,7 @@ import json
 import logging
 from typing import Optional, List
 from core.models import Room, HouseSpecs
-from ai.gemini_client import get_model
+from ai.gemini_client import get_model, MODEL_NAME
 from ai.prompt_generator import generate_house_plan_prompt, GENERATION_CONFIG
 from generators.rule_based_generator import RuleBasedLayoutGenerator
 from generators.ai_layout_converter import AIResponseConverter
@@ -24,14 +24,23 @@ class HousePlanGenerator:
 
         try:
             prompt = generate_house_plan_prompt(specs)
-            response = self.model.generate_content(prompt, generation_config=GENERATION_CONFIG)
+            from google.genai import types
+            response = self.model.models.generate_content(
+                model=MODEL_NAME,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=GENERATION_CONFIG["temperature"],
+                    top_p=GENERATION_CONFIG["top_p"],
+                    max_output_tokens=GENERATION_CONFIG["max_output_tokens"],
+                    response_mime_type="application/json",
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                ),
+            )
 
             if not response or not response.text:
                 raise RuntimeError("Empty response from Gemini API")
 
             ai_response = response.text.strip()
-            if ai_response.startswith('```'):
-                ai_response = ai_response.split('\n', 1)[1].rsplit('\n', 1)[0].strip()
 
             try:
                 layout_data = json.loads(ai_response)

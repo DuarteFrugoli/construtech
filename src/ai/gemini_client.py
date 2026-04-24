@@ -4,28 +4,30 @@ AI model initialization and configuration for house plan generation.
 import os
 import logging
 from typing import Optional, Tuple
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+MODEL_NAME = "gemini-2.5-flash"
+
 _use_ai: bool = False
-_model: Optional[genai.GenerativeModel] = None
+_client: Optional[genai.Client] = None
 _initialized: bool = False
 
 
-def get_model() -> Tuple[bool, Optional[genai.GenerativeModel]]:
+def get_model() -> Tuple[bool, Optional[genai.Client]]:
     """
-    Return the Gemini model singleton, initializing it on first call.
+    Return the Gemini client singleton, initializing it on first call.
 
     Returns:
-        Tuple of (use_ai: bool, model: Optional[GenerativeModel])
+        Tuple of (use_ai: bool, client: Optional[genai.Client])
     """
-    global _use_ai, _model, _initialized
+    global _use_ai, _client, _initialized
     if _initialized:
-        return _use_ai, _model
+        return _use_ai, _client
 
     try:
         api_key = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
@@ -34,20 +36,15 @@ def get_model() -> Tuple[bool, Optional[genai.GenerativeModel]]:
             _initialized = True
             return False, None
 
-        genai.configure(api_key=api_key)
-        _model = genai.GenerativeModel('models/gemini-1.5-flash')
-        test_response = _model.generate_content("Hello")
-        if test_response:
-            logger.info("Gemini model initialized successfully.")
-            _use_ai = True
-        else:
-            raise RuntimeError("Empty test response from Gemini model")
+        _client = genai.Client(api_key=api_key)
+        logger.info(f"Gemini client initialized (model: {MODEL_NAME}).")
+        _use_ai = True
 
     except Exception as e:
         logger.warning(f"Failed to initialize Gemini API: {e}. Using rule-based generation.")
-        _model = None
+        _client = None
         _use_ai = False
 
     _initialized = True
-    return _use_ai, _model
+    return _use_ai, _client
  
