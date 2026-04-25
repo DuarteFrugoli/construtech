@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import DOMPurify from 'dompurify';
+import React, { useRef, useState } from 'react';
 import Modal from './Modal';
 import LocationPicker from './LocationPicker';
 import LoadingOverlay from './LoadingOverlay';
+import FloorPlanCanvas, { type RoomData, type FloorPlanTerrain } from './FloorPlanCanvas';
 
 interface HousePlanFormData {
   terrain_width: number;
@@ -85,8 +85,8 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
-  const [svgContent, setSvgContent] = useState<string>('');
-  const [roomLayout, setRoomLayout] = useState<Array<{name: string; x: number; y: number; width: number; height: number}>>([]);
+  const [planData, setPlanData] = useState<{ terrain: FloorPlanTerrain; layout: RoomData[] } | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [imageUrl, setImageUrl] = useState<string>('');
   const [isLoadingImage, setIsLoadingImage] = useState(false);
   const [terrainData, setTerrainData] = useState<TerrainData | null>(null);
@@ -187,7 +187,7 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           terrain_width: formData.terrain_width,
           terrain_height: formData.terrain_height,
           recuo_frontal: formData.recuo_frontal,
-          room_layout: roomLayout,
+          room_layout: planData?.layout ?? [],
         })
       });
       if (!imageResponse.ok) {
@@ -245,10 +245,9 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
 
       if (!response.ok) throw new Error('Failed to generate house plan');
       const data = await response.json();
-      setSvgContent(data.svg);
-      setRoomLayout(data.layout ?? []);
+      setPlanData({ terrain: data.terrain, layout: data.layout ?? [] });
       setShowModal(true);
-      if (onSubmit) onSubmit(data.svg);
+      if (onSubmit) onSubmit('');
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -526,7 +525,9 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           <div className="flex gap-2 justify-end">
             <button
               onClick={() => {
-                const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+                const svgEl = svgRef.current;
+                if (!svgEl) return;
+                const blob = new Blob([svgEl.outerHTML], { type: 'image/svg+xml' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -552,7 +553,13 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
               {isLoadingImage ? 'Gerando...' : 'Visualização 3D'}
             </button>
           </div>
-          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svgContent) }} />
+          {planData && (
+            <FloorPlanCanvas
+              ref={svgRef}
+              terrain={planData.terrain}
+              rooms={planData.layout}
+            />
+          )}
         </div>
       </Modal>
 

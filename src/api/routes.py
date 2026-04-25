@@ -4,11 +4,10 @@ API routes for house plan generation.
 import asyncio
 import logging
 import os
-import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
 
@@ -16,7 +15,6 @@ load_dotenv()
 
 from core.models import HouseSpecs
 from generators.house_plan_generator import HousePlanGenerator
-from generators.svg_generator import SVGHousePlanGenerator
 from services.terrain_analyzer import TerrainAnalyzer
 from services.image_generator import HouseImageGenerator
 
@@ -165,10 +163,9 @@ async def generate_house_image(request: ImageGenerationRequest):
 async def generate_house_plan(request: HousePlanRequest):
     """
     Generate a house plan based on the provided specifications.
-    Returns JSON with 'svg' (SVG string) and 'layout' (room positions list).
+    Returns JSON with terrain info and room layout (positions + doors).
     """
     try:
-        # Create specifications
         specs = HouseSpecs(
             terrain_width=request.terrain_width,
             terrain_height=request.terrain_height,
@@ -192,19 +189,10 @@ async def generate_house_plan(request: HousePlanRequest):
             has_area_gourmet=request.has_area_gourmet,
             has_area_servico=request.has_area_servico,
         )
-        
-        # Generate plan
+
         generator = HousePlanGenerator()
         rooms = generator.generate_room_layout(specs)
-        
-        # Generate SVG
-        svg_generator = SVGHousePlanGenerator()
-        svg_element = svg_generator.generate_svg_from_rooms(rooms, specs)
-        
-        # Convert to string
-        svg_content = ET.tostring(svg_element, encoding='unicode')
 
-        # Serialize room layout (only spatial fields needed for image generation)
         layout = [
             {
                 "name": r.name,
@@ -212,12 +200,31 @@ async def generate_house_plan(request: HousePlanRequest):
                 "y": r.y,
                 "width": r.width,
                 "height": r.height,
+                "doors": [
+                    {
+                        "x": d.x,
+                        "y": d.y,
+                        "width": d.width,
+                        "height": d.height,
+                        "is_horizontal": d.is_horizontal,
+                    }
+                    for d in r.doors
+                ],
             }
             for r in rooms
         ]
 
-        return {"svg": svg_content, "layout": layout}
-        
+        return {
+            "terrain": {
+                "width": specs.terrain_width,
+                "height": specs.terrain_height,
+                "recuo_frontal": specs.recuo_frontal,
+                "recuo_lateral": specs.recuo_lateral,
+                "recuo_fundo": specs.recuo_fundo,
+            },
+            "layout": layout,
+        }
+
     except Exception as e:
         logger.error(f"Error generating house plan: {e}")
         raise HTTPException(status_code=500, detail="Erro interno ao gerar planta.")
