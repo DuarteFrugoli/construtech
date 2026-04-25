@@ -78,18 +78,3 @@ construtech/
 | `src/generators/svg_generator.py` | Arquivo órfão — não é importado em nenhum lugar desde a migração SVG→frontend. Remover após confirmar que não há regressão. |
 | `src/ai/` | Pasta com só `__init__.py`. Remover se não houver plano de uso futuro próximo. |
 | CORS hardcoded em `routes.py` | `allow_origins=["http://localhost:5173"]` — bloqueia qualquer deploy. Precisa ser variável de ambiente. |
-
----
-
-## Resolvido
-
-| Item | Solução |
-|---|---|
-| Módulos soltos em `src/` | Movidos com `git mv` para subpastas corretas |
-| `src/main.py` legado | Removido (`git rm`) |
-| `outputs/` dentro do pacote | Movido para raiz do projeto; `.gitignore` atualizado |
-| Renomeação de 6 arquivos | `rule_based_layout.py` → `rule_based_generator.py`, `ai_response_converter.py` → `ai_layout_converter.py`, `svg_constants.py` → `constants.py`, `server.py` → `main.py`, `file_manager.py` → `output_manager.py` |
-| Gemini removido (25/04/2026) | `gemini_client.py`, `prompt_generator.py`, `ai_layout_converter.py` deletados; `google-generativeai` removido de `requirements.txt` |
-| SVG gerado no backend (25/04/2026) | Migrado para `FloorPlanCanvas.tsx` no frontend; backend agora retorna JSON `{terrain, layout[]}` |
-| `dangerouslySetInnerHTML` + DOMPurify (25/04/2026) | Removidos — SVG é construído pelo React, sem string HTML externa |
-| `HousePlanPreview.tsx` (componente não usado) | Deletado |
