@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DOMPurify from 'dompurify';
 import Modal from './Modal';
 import LocationPicker from './LocationPicker';
 import LoadingOverlay from './LoadingOverlay';
@@ -7,103 +8,199 @@ interface HousePlanFormData {
   terrain_width: number;
   terrain_height: number;
   num_bedrooms: number;
-  num_bathrooms: number;
+  num_social_bathrooms: number;
+  num_suites: number;
   has_dining_room: boolean;
   has_garage: boolean;
+  has_living_room: boolean;
+  has_kitchen: boolean;
+  has_home_office: boolean;
+  has_dependencia: boolean;
+  has_varanda: boolean;
+  has_lavabo: boolean;
+  has_area_gourmet: boolean;
+  has_area_servico: boolean;
   style: string;
   address: string;
-  description: string;
+  description_estetica: string;
+  // Plano Diretor
+  taxa_ocupacao: number;              // percentual 0–100
+  coeficiente_aproveitamento: number; // CA
+  recuo_frontal: number;              // metros
+  recuo_lateral: number;              // metros
+  recuo_fundo: number;                // metros
+  num_pavimentos: number;             // gabarito
+  taxa_permeabilidade: number;        // percentual 0–100
 }
 
 interface TerrainData {
-  min_elevation: number;
-  max_elevation: number;
-  height_difference: number;
-  slope: number;
-  slope_angle: number;
-  coordinates: {
-    lat: number;
-    lng: number;
-  };
+  address: string;
+  coordinates: { lat: number; lng: number };
+  elevation: { min: number; max: number; difference: number };
+  slope: { average: number; maximum: number; average_percentage: number; maximum_percentage: number };
+  warnings: string[];
 }
 
 interface HousePlanFormProps {
   onSubmit?: (svg: string) => void;
 }
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+// Valores genéricos permissivos usados quando o usuário não quer configurar o plano diretor
+const GENERIC_PLANO_DIRETOR = {
+  taxa_ocupacao: 60,
+  coeficiente_aproveitamento: 2.0,
+  recuo_frontal: 3.0,
+  recuo_lateral: 1.5,
+  recuo_fundo: 1.5,
+  num_pavimentos: 2,
+  taxa_permeabilidade: 15,
+};
+
 const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
   const [formData, setFormData] = useState<HousePlanFormData>({
     terrain_width: 20,
     terrain_height: 30,
     num_bedrooms: 2,
-    num_bathrooms: 1,
+    num_social_bathrooms: 1,
+    num_suites: 0,
     has_dining_room: false,
     has_garage: false,
+    has_living_room: true,
+    has_kitchen: true,
+    has_home_office: false,
+    has_dependencia: false,
+    has_varanda: false,
+    has_lavabo: false,
+    has_area_gourmet: false,
+    has_area_servico: false,
     style: 'modern',
     address: '',
-    description: ''
+    description_estetica: '',
+    ...GENERIC_PLANO_DIRETOR,
   });
+  const [usarPlanoDiretor, setUsarPlanoDiretor] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [svgContent, setSvgContent] = useState<string>('');
+  const [roomLayout, setRoomLayout] = useState<Array<{name: string; x: number; y: number; width: number; height: number}>>([]);
   const [imageUrl, setImageUrl] = useState<string>('');
   const [isLoadingImage, setIsLoadingImage] = useState(false);
   const [terrainData, setTerrainData] = useState<TerrainData | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
-    }));
+    setFormData(prev => {
+      const nextValue = type === 'checkbox'
+        ? (e.target as HTMLInputElement).checked
+        : type === 'number'
+          ? Number(value)
+          : value;
+
+      const next = {
+        ...prev,
+        [name]: nextValue,
+      } as HousePlanFormData;
+
+      if (name === 'num_bedrooms') {
+        next.num_suites = Math.min(next.num_suites, Number(nextValue));
+      }
+
+      if (name === 'num_suites') {
+        next.num_suites = Math.min(Number(nextValue), prev.num_bedrooms);
+      }
+
+      if (name === 'num_social_bathrooms') {
+        next.num_social_bathrooms = Math.max(0, Number(nextValue));
+      }
+
+      return next;
+    });
   };
 
   const handleLocationSelect = (address: string) => {
-    setFormData(prev => ({
-      ...prev,
-      address
-    }));
+    setFormData(prev => ({ ...prev, address }));
+  };
+
+  const handleTogglePlanoDiretor = (checked: boolean) => {
+    setUsarPlanoDiretor(checked);
+    if (!checked) {
+      // Volta para os valores genéricos ao desativar
+      setFormData(prev => ({ ...prev, ...GENERIC_PLANO_DIRETOR }));
+    }
   };
 
   const handleMoreInfo = async () => {
-    if (isLoadingImage) return; // Prevent multiple clicks while loading
+    if (isLoadingImage) return;
+
     setIsLoadingImage(true);
-    // Don't show modal immediately, wait for data to load
 
     try {
-      // Fetch terrain data if address is provided
+      let currentTerrainData = terrainData;
+
       if (formData.address) {
-        const terrainResponse = await fetch(`http://localhost:8000/analyze-terrain?address=${encodeURIComponent(formData.address)}`);
+        const terrainResponse = await fetch(`${API_URL}/analyze-terrain?address=${encodeURIComponent(formData.address)}`);
         if (!terrainResponse.ok) throw new Error('Failed to analyze terrain');
-        const newTerrainData = await terrainResponse.json();
-        setTerrainData(newTerrainData);
-        localStorage.setItem('terrainData', JSON.stringify(newTerrainData));
+        currentTerrainData = await terrainResponse.json();
+        setTerrainData(currentTerrainData);
+        localStorage.setItem('terrainData', JSON.stringify(currentTerrainData));
       }
 
-      // Generate house image if we have terrain data and description
-      if (formData.description) {
-        const imageResponse = await fetch('http://localhost:8000/generate-house-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            description: formData.description,
-            terrain_data: terrainData || JSON.parse(localStorage.getItem('terrainData') || '{}')
-          })
-        });
-        if (!imageResponse.ok) {
-          const errorData = await imageResponse.json();
-          throw new Error(errorData.detail || 'Failed to generate house image');
+      if (!currentTerrainData) {
+        try {
+          const stored = localStorage.getItem('terrainData');
+          currentTerrainData = stored ? JSON.parse(stored) : null;
+        } catch {
+          currentTerrainData = null;
         }
-        const { image_url } = await imageResponse.json();
-        setImageUrl(image_url);
       }
+
+      if (!currentTerrainData || Object.keys(currentTerrainData).length === 0) {
+        setError('Dados do terreno não disponíveis. Informe um endereço primeiro.');
+        return;
+      }
+
+      const imageResponse = await fetch(`${API_URL}/generate-house-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description_estetica: formData.description_estetica,
+          terrain_data: currentTerrainData,
+          num_bedrooms: formData.num_bedrooms,
+          num_social_bathrooms: formData.num_social_bathrooms,
+          num_suites: formData.num_suites,
+          has_garage: formData.has_garage,
+          has_dining_room: formData.has_dining_room,
+          has_living_room: formData.has_living_room,
+          has_kitchen: formData.has_kitchen,
+          has_home_office: formData.has_home_office,
+          has_dependencia: formData.has_dependencia,
+          has_varanda: formData.has_varanda,
+          has_lavabo: formData.has_lavabo,
+          has_area_gourmet: formData.has_area_gourmet,
+          has_area_servico: formData.has_area_servico,
+          style: formData.style,
+          num_pavimentos: formData.num_pavimentos,
+          terrain_width: formData.terrain_width,
+          terrain_height: formData.terrain_height,
+          recuo_frontal: formData.recuo_frontal,
+          room_layout: roomLayout,
+        })
+      });
+      if (!imageResponse.ok) {
+        const errorData = await imageResponse.json();
+        throw new Error(errorData.detail || 'Failed to generate house image');
+      }
+      const { image_url } = await imageResponse.json();
+      setImageUrl(image_url);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoadingImage(false);
-      setShowImageModal(true); // Show modal only after loading is complete
+      setShowImageModal(true);
     }
   };
 
@@ -116,25 +213,42 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
 
     try {
       // Generate house plan
-      const response = await fetch('http://localhost:8000/generate-house-plan', {
+      const response = await fetch(`${API_URL}/generate-house-plan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           terrain_width: formData.terrain_width,
           terrain_height: formData.terrain_height,
           num_bedrooms: formData.num_bedrooms,
-          num_bathrooms: formData.num_bathrooms,
+          num_social_bathrooms: formData.num_social_bathrooms,
+          num_suites: formData.num_suites,
           has_dining_room: formData.has_dining_room,
           has_garage: formData.has_garage,
-          style: formData.style
+          has_living_room: formData.has_living_room,
+          has_kitchen: formData.has_kitchen,
+          has_home_office: formData.has_home_office,
+          has_dependencia: formData.has_dependencia,
+          has_varanda: formData.has_varanda,
+          has_lavabo: formData.has_lavabo,
+          has_area_gourmet: formData.has_area_gourmet,
+          has_area_servico: formData.has_area_servico,
+          style: formData.style,
+          taxa_ocupacao: formData.taxa_ocupacao / 100,
+          coeficiente_aproveitamento: formData.coeficiente_aproveitamento,
+          recuo_frontal: formData.recuo_frontal,
+          recuo_lateral: formData.recuo_lateral,
+          recuo_fundo: formData.recuo_fundo,
+          num_pavimentos: formData.num_pavimentos,
+          taxa_permeabilidade: formData.taxa_permeabilidade / 100,
         })
       });
 
       if (!response.ok) throw new Error('Failed to generate house plan');
-      const svg = await response.text();
-      setSvgContent(svg);
+      const data = await response.json();
+      setSvgContent(data.svg);
+      setRoomLayout(data.layout ?? []);
       setShowModal(true);
-      if (onSubmit) onSubmit(svg);
+      if (onSubmit) onSubmit(data.svg);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -195,14 +309,28 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">Número de Banheiros</label>
+            <label className="block text-sm font-semibold text-gray-700">Número de Suítes</label>
             <input
               type="number"
-              name="num_bathrooms"
-              value={formData.num_bathrooms}
+              name="num_suites"
+              value={formData.num_suites}
               onChange={handleInputChange}
               className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors px-4 py-3"
-              min="1"
+              min="0"
+              max={formData.num_bedrooms}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-700">Banheiros Sociais</label>
+            <input
+              type="number"
+              name="num_social_bathrooms"
+              value={formData.num_social_bathrooms}
+              onChange={handleInputChange}
+              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors px-4 py-3"
+              min="0"
               required
             />
           </div>
@@ -235,40 +363,137 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">Descrição da Casa</label>
+            <label className="block text-sm font-semibold text-gray-700">Preferências Estéticas — para a visualização 3D</label>
+            <p className="text-xs text-gray-400">Fachada, materiais, estilo visual, referências arquitetônicas</p>
             <textarea
-              name="description"
-              value={formData.description}
+              name="description_estetica"
+              value={formData.description_estetica}
               onChange={handleInputChange}
               className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors px-4 py-3"
-              placeholder="Descreva como você imagina sua casa"
+              placeholder="Ex: fachada minimalista, concreto aparente e madeira, jardim frontal, telhado plano..."
               rows={3}
             />
           </div>
         </div>
 
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              name="has_dining_room"
-              checked={formData.has_dining_room}
-              onChange={handleInputChange}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label className="ml-2 block text-sm text-gray-700">Sala de Jantar</label>
+        {/* Cômodos */}
+        <div className="border border-gray-200 rounded-lg p-5 space-y-3">
+          <h3 className="text-sm font-semibold text-gray-700">Cômodos</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {([
+              { name: 'has_living_room',  label: 'Sala de Estar' },
+              { name: 'has_kitchen',      label: 'Cozinha' },
+              { name: 'has_dining_room',  label: 'Sala de Jantar' },
+              { name: 'has_garage',       label: 'Garagem' },
+              { name: 'has_home_office',  label: 'Escritório' },
+              { name: 'has_dependencia',  label: 'Dependência' },
+              { name: 'has_varanda',      label: 'Varanda' },
+              { name: 'has_lavabo',       label: 'Lavabo' },
+              { name: 'has_area_gourmet', label: 'Área Gourmet' },
+              { name: 'has_area_servico', label: 'Área de Serviço' },
+            ] as const).map(({ name, label }) => (
+              <div key={name} className="flex items-center">
+                <input
+                  type="checkbox"
+                  name={name}
+                  checked={formData[name]}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label className="ml-2 block text-sm text-gray-700">{label}</label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Plano Diretor */}
+        <div className="border border-gray-200 rounded-lg p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700">Parâmetros do Plano Diretor</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {usarPlanoDiretor
+                  ? 'Preencha conforme a zona do seu terreno. Consulte a prefeitura local.'
+                  : 'Usando valores genéricos permissivos. Ative para informar os parâmetros do seu município.'}
+              </p>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <span className="text-xs text-gray-600">Configurar</span>
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={usarPlanoDiretor}
+                  onChange={e => handleTogglePlanoDiretor(e.target.checked)}
+                />
+                <div className={`w-10 h-6 rounded-full transition-colors ${usarPlanoDiretor ? 'bg-blue-600' : 'bg-gray-300'}`} />
+                <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${usarPlanoDiretor ? 'translate-x-4' : ''}`} />
+              </div>
+            </label>
           </div>
 
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              name="has_garage"
-              checked={formData.has_garage}
-              onChange={handleInputChange}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label className="ml-2 block text-sm text-gray-700">Garagem</label>
-          </div>
+          {!usarPlanoDiretor && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-gray-50 rounded-lg p-3 text-xs text-gray-500">
+              <span>TO: {GENERIC_PLANO_DIRETOR.taxa_ocupacao}%</span>
+              <span>CA: {GENERIC_PLANO_DIRETOR.coeficiente_aproveitamento}</span>
+              <span>Gabarito: {GENERIC_PLANO_DIRETOR.num_pavimentos} pav.</span>
+              <span>Permeab.: {GENERIC_PLANO_DIRETOR.taxa_permeabilidade}%</span>
+              <span>R. Frontal: {GENERIC_PLANO_DIRETOR.recuo_frontal}m</span>
+              <span>R. Lateral: {GENERIC_PLANO_DIRETOR.recuo_lateral}m</span>
+              <span>R. Fundo: {GENERIC_PLANO_DIRETOR.recuo_fundo}m</span>
+            </div>
+          )}
+
+          {usarPlanoDiretor && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Taxa de Ocupação — TO (%)</label>
+                  <input type="number" name="taxa_ocupacao" value={formData.taxa_ocupacao} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="1" max="100" step="1" />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Coef. de Aproveitamento — CA</label>
+                  <input type="number" name="coeficiente_aproveitamento" value={formData.coeficiente_aproveitamento} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="0.1" max="20" step="0.1" />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Gabarito (nº de pavimentos)</label>
+                  <input type="number" name="num_pavimentos" value={formData.num_pavimentos} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="1" max="30" step="1" />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Taxa de Permeabilidade (%)</label>
+                  <input type="number" name="taxa_permeabilidade" value={formData.taxa_permeabilidade} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="0" max="99" step="1" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Recuo Frontal (m)</label>
+                  <input type="number" name="recuo_frontal" value={formData.recuo_frontal} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="0" step="0.5" />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Recuo Lateral (m)</label>
+                  <input type="number" name="recuo_lateral" value={formData.recuo_lateral} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="0" step="0.5" />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-600">Recuo de Fundo (m)</label>
+                  <input type="number" name="recuo_fundo" value={formData.recuo_fundo} onChange={handleInputChange}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 px-3 py-2 text-sm"
+                    min="0" step="0.5" />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {error && (
@@ -297,19 +522,37 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
       </form>
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Planta da Casa">
-        <div className="relative">
-          <div dangerouslySetInnerHTML={{ __html: svgContent }} />
-          <button
-            onClick={handleMoreInfo}
-            disabled={isLoadingImage}
-            className={`absolute top-4 right-4 px-4 py-2 rounded-md transition-colors ${
-              isLoadingImage 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
-          >
-            {isLoadingImage ? 'Gerando...' : 'Mais Informações'}
-          </button>
+        <div className="flex flex-col w-full gap-3">
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => {
+                const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'planta-casa.svg';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              }}
+              className="px-4 py-2 rounded-md bg-green-600 hover:bg-green-700 text-white transition-colors text-sm"
+            >
+              Download SVG
+            </button>
+            <button
+              onClick={handleMoreInfo}
+              disabled={isLoadingImage}
+              className={`px-4 py-2 rounded-md transition-colors text-sm ${
+                isLoadingImage
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              {isLoadingImage ? 'Gerando...' : 'Visualização 3D'}
+            </button>
+          </div>
+          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svgContent) }} />
         </div>
       </Modal>
 
@@ -323,11 +566,49 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
             />
           )}
           {terrainData && (
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-2">Informações do Terreno</h3>
-              <pre className="text-sm text-gray-700 whitespace-pre-wrap">
-                {JSON.stringify(terrainData, null, 2)}
-              </pre>
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-700">Análise do Terreno</h3>
+              {terrainData.warnings.length > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 space-y-1">
+                  {terrainData.warnings.map((w, i) => (
+                    <p key={i} className="text-xs text-yellow-800">⚠ {w}</p>
+                  ))}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm">
+                  <div className="text-xs text-gray-500 mb-1">Elevação mín.</div>
+                  <div className="text-lg font-semibold text-blue-600">{terrainData.elevation.min.toFixed(1)} m</div>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm">
+                  <div className="text-xs text-gray-500 mb-1">Elevação máx.</div>
+                  <div className="text-lg font-semibold text-blue-600">{terrainData.elevation.max.toFixed(1)} m</div>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm">
+                  <div className="text-xs text-gray-500 mb-1">Desnível</div>
+                  <div className="text-lg font-semibold text-orange-600">{terrainData.elevation.difference.toFixed(1)} m</div>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-lg p-3 text-center shadow-sm">
+                  <div className="text-xs text-gray-500 mb-1">Inclinação média</div>
+                  <div className="text-lg font-semibold text-orange-600">{terrainData.slope.average_percentage.toFixed(1)} %</div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const blob = new Blob([JSON.stringify(terrainData, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'terreno.json';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Baixar dados brutos (JSON)
+              </button>
             </div>
           )}
         </div>

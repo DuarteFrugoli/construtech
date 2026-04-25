@@ -1,19 +1,24 @@
 # Translation dictionary for room names and labels
-TRANSLATIONS = {
+_STATIC_TRANSLATIONS = {
     "Living Room": "Sala de Estar",
     "Master Bedroom": "Quarto Principal",
     "Bedroom": "Quarto",
-    "Bedroom 2": "Quarto 2",
-    "Bedroom 3": "Quarto 3",
     "Bathroom": "Banheiro",
     "Master Bathroom": "Banheiro Principal",
-    "Bathroom 2": "Banheiro 2",
     "Kitchen": "Cozinha",
     "Dining Room": "Sala de Jantar",
     "Garage": "Garagem",
+    "Escritório": "Escritório",
+    "Dependência": "Dependência",
+    "Varanda": "Varanda",
+    "Lavabo": "Lavabo",
+    "Área Gourmet": "Área Gourmet",
+    "Área de Serviço": "Área de Serviço",
     "Built Area": "Área Construída",
     "Total Area": "Área Total",
     "Bedrooms": "Quartos",
+    "Suites": "Suítes",
+    "Social Bathrooms": "Banheiros Sociais",
     "Bathrooms": "Banheiros",
     "Style": "Estilo",
     "Traditional": "Tradicional",
@@ -24,8 +29,37 @@ TRANSLATIONS = {
     "Back of House": "Fundo da Casa",
     "Lateral of House": "Laterais da Casa",
     "Hall": "Hall",
-    "Corridor": "Corredor"
+    "Corridor": "Corredor",
+    "Suite Bathroom": "Banheiro da Suíte",
+    "Suite": "Suíte",
 }
+
+
+def translate(name: str) -> str:
+    """Translate a room name, handling dynamic numbered variants like 'Bedroom 4'."""
+    if name in _STATIC_TRANSLATIONS:
+        return _STATIC_TRANSLATIONS[name]
+    for prefix, pt in (
+        ("Suite Bathroom ", "Banheiro da Suíte "),  # must precede "Suite "
+        ("Suite ", "Suíte "),
+        ("Bedroom ", "Quarto "),
+        ("Bathroom ", "Banheiro "),
+    ):
+        if name.startswith(prefix):
+            return pt + name[len(prefix):]
+    return name
+
+
+class _TranslationsProxy(dict):
+    """Dict-like proxy that translates unknown keys dynamically."""
+    def get(self, key, default=None):
+        return translate(key) if key else default
+
+    def __getitem__(self, key):
+        return translate(key)
+
+
+TRANSLATIONS = _TranslationsProxy(_STATIC_TRANSLATIONS)
 
 # SVG style definitions
 SVG_STYLES = """

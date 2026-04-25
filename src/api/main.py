@@ -1,6 +1,7 @@
 """
 Server module for running the house plan generator API.
 """
+import os
 import uvicorn
 import sys
 from pathlib import Path
@@ -13,9 +14,12 @@ if src_path not in sys.path:
 from api.routes import app
 
 if __name__ == "__main__":
+    # Em produção, use HOST=127.0.0.1 e coloque um reverse proxy (nginx/caddy) na frente.
+    # O valor padrão 0.0.0.0 é aceitável apenas para desenvolvimento local.
+    host = os.getenv("HOST", "0.0.0.0")
     uvicorn.run(
         "api.routes:app",
-        host="0.0.0.0",
+        host=host,
         port=8000,
-        reload=True
-    ) 
+        reload=os.getenv("ENV") == "development"
+    )

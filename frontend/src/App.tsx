@@ -1,10 +1,8 @@
-import React from 'react'
 import HousePlanForm from './components/HousePlanForm'
 
 function App() {
   const handleGenerate = () => {
-    // Handle the generated SVG if needed
-    console.log('House plan generated')
+    // SVG disponível via prop onSubmit se necessário
   }
 
   return (
@@ -38,7 +36,7 @@ function App() {
               Customize every aspect of your future home with just a few clicks.
             </p>
           </div>
-          <HousePlanForm onGenerate={handleGenerate} />
+          <HousePlanForm onSubmit={handleGenerate} />
         </div>
       </main>
 

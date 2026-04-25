@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Tuple
 from core.models import Room, HouseSpecs
-from svg_constants import TRANSLATIONS, SVG_STYLES
+from utils.constants import TRANSLATIONS, SVG_STYLES
 
 class SVGHousePlanGenerator:
     def __init__(self):
@@ -30,6 +30,8 @@ class SVGHousePlanGenerator:
             f"{TRANSLATIONS['Built Area']}: {specs.built_area:.0f} m²",
             f"{TRANSLATIONS['Total Area']}: {specs.total_area:.0f} m²",
             f"{TRANSLATIONS['Bedrooms']}: {specs.num_bedrooms}",
+            f"{TRANSLATIONS['Suites']}: {specs.num_suites}",
+            f"{TRANSLATIONS['Social Bathrooms']}: {specs.num_social_bathrooms}",
             f"{TRANSLATIONS['Bathrooms']}: {specs.num_bathrooms}",
             f"{TRANSLATIONS['Style']}: {TRANSLATIONS.get(specs.style.title(), specs.style.title())}"
         ]
@@ -294,39 +296,81 @@ class SVGHousePlanGenerator:
             'style': 'stroke: #0066cc; stroke-width: 4;'
         })
         
-        # Draw front setback line and label
+        # Draw front setback dashed line and all other setback lines
         if terrain_width_scaled > terrain_height_scaled:
-            # If width is longer, draw vertical setback line
-            setback_x = terrain_x + specs.RECUO_FRONTAL * scale
+            # Front=left, Back=right, Laterals=top/bottom
+            # Front setback (vertical dashed)
+            setback_x = terrain_x + specs.recuo_frontal * scale
             ET.SubElement(svg, 'line', {
-                'x1': str(setback_x),
-                'y1': str(terrain_y),
-                'x2': str(setback_x),
-                'y2': str(terrain_y + terrain_height_scaled),
+                'x1': str(setback_x), 'y1': str(terrain_y),
+                'x2': str(setback_x), 'y2': str(terrain_y + terrain_height_scaled),
                 'style': 'stroke: #666; stroke-width: 1; stroke-dasharray: 5,5;'
             })
-            # Add setback label
             ET.SubElement(svg, 'text', {
-                'x': str(setback_x + 5),
-                'y': str(terrain_y + 20),
+                'x': str(setback_x + 5), 'y': str(terrain_y + 20),
                 'style': 'font-family: Arial; font-size: 10px; fill: #666;'
-            }).text = f"Recuo: {specs.RECUO_FRONTAL:.1f}m"
+            }).text = f"RF: {specs.recuo_frontal:.1f}m"
+            # Back setback (vertical dashed)
+            back_setback_x = terrain_x + terrain_width_scaled - specs.recuo_fundo * scale
+            ET.SubElement(svg, 'line', {
+                'x1': str(back_setback_x), 'y1': str(terrain_y),
+                'x2': str(back_setback_x), 'y2': str(terrain_y + terrain_height_scaled),
+                'style': 'stroke: #666; stroke-width: 1; stroke-dasharray: 5,5;'
+            })
+            ET.SubElement(svg, 'text', {
+                'x': str(back_setback_x + 5), 'y': str(terrain_y + 20),
+                'style': 'font-family: Arial; font-size: 10px; fill: #666;'
+            }).text = f"RFu: {specs.recuo_fundo:.1f}m"
+            # Lateral setbacks (horizontal dashed, top and bottom)
+            lat_setback_y1 = terrain_y + specs.recuo_lateral * scale
+            lat_setback_y2 = terrain_y + terrain_height_scaled - specs.recuo_lateral * scale
+            for lat_y in [lat_setback_y1, lat_setback_y2]:
+                ET.SubElement(svg, 'line', {
+                    'x1': str(terrain_x), 'y1': str(lat_y),
+                    'x2': str(terrain_x + terrain_width_scaled), 'y2': str(lat_y),
+                    'style': 'stroke: #666; stroke-width: 1; stroke-dasharray: 5,5;'
+                })
+            ET.SubElement(svg, 'text', {
+                'x': str(terrain_x + 5), 'y': str(lat_setback_y1 - 3),
+                'style': 'font-family: Arial; font-size: 10px; fill: #666;'
+            }).text = f"RL: {specs.recuo_lateral:.1f}m"
         else:
-            # If height is longer, draw horizontal setback line
-            setback_y = terrain_y + specs.RECUO_FRONTAL * scale
+            # Front=top, Back=bottom, Laterals=left/right
+            # Front setback (horizontal dashed)
+            setback_y = terrain_y + specs.recuo_frontal * scale
             ET.SubElement(svg, 'line', {
-                'x1': str(terrain_x),
-                'y1': str(setback_y),
-                'x2': str(terrain_x + terrain_width_scaled),
-                'y2': str(setback_y),
+                'x1': str(terrain_x), 'y1': str(setback_y),
+                'x2': str(terrain_x + terrain_width_scaled), 'y2': str(setback_y),
                 'style': 'stroke: #666; stroke-width: 1; stroke-dasharray: 5,5;'
             })
-            # Add setback label
             ET.SubElement(svg, 'text', {
-                'x': str(terrain_x + 5),
-                'y': str(setback_y - 5),
+                'x': str(terrain_x + 5), 'y': str(setback_y - 5),
                 'style': 'font-family: Arial; font-size: 10px; fill: #666;'
-            }).text = f"Recuo: {specs.RECUO_FRONTAL:.1f}m"
+            }).text = f"RF: {specs.recuo_frontal:.1f}m"
+            # Back setback (horizontal dashed)
+            back_setback_y = terrain_y + terrain_height_scaled - specs.recuo_fundo * scale
+            ET.SubElement(svg, 'line', {
+                'x1': str(terrain_x), 'y1': str(back_setback_y),
+                'x2': str(terrain_x + terrain_width_scaled), 'y2': str(back_setback_y),
+                'style': 'stroke: #666; stroke-width: 1; stroke-dasharray: 5,5;'
+            })
+            ET.SubElement(svg, 'text', {
+                'x': str(terrain_x + 5), 'y': str(back_setback_y - 5),
+                'style': 'font-family: Arial; font-size: 10px; fill: #666;'
+            }).text = f"RFu: {specs.recuo_fundo:.1f}m"
+            # Lateral setbacks (vertical dashed, left and right)
+            lat_setback_x1 = terrain_x + specs.recuo_lateral * scale
+            lat_setback_x2 = terrain_x + terrain_width_scaled - specs.recuo_lateral * scale
+            for lat_x in [lat_setback_x1, lat_setback_x2]:
+                ET.SubElement(svg, 'line', {
+                    'x1': str(lat_x), 'y1': str(terrain_y),
+                    'x2': str(lat_x), 'y2': str(terrain_y + terrain_height_scaled),
+                    'style': 'stroke: #666; stroke-width: 1; stroke-dasharray: 5,5;'
+                })
+            ET.SubElement(svg, 'text', {
+                'x': str(lat_setback_x1 + 3), 'y': str(terrain_y + 30),
+                'style': 'font-family: Arial; font-size: 10px; fill: #666;'
+            }).text = f"RL: {specs.recuo_lateral:.1f}m"
         
         # Third pass: draw room labels
         for room in rooms:
@@ -363,9 +407,9 @@ class SVGHousePlanGenerator:
                 'style': 'font-family: Arial; font-size: 12px; fill: #333;'  # Made text slightly larger and darker
             }).text = text
         
-        # Title
+        # Title — centered on actual SVG width
         title = ET.SubElement(svg, 'text', {
-            'x': '400',
+            'x': str(svg_width / 2),
             'y': '25',
             'style': 'font-family: Arial; font-size: 16px; font-weight: bold; text-anchor: middle; fill: #333;'
         })
@@ -378,8 +422,13 @@ class SVGHousePlanGenerator:
         # Add Plano Diretor checklist
         pd_text = [
             f"Plano Diretor:",
-            f"• Taxa de Ocupação: {specs.TAXA_OCUPACAO*100}%",
-            f"• Recuo Frontal: {specs.RECUO_FRONTAL:.1f}m"
+            f"• Taxa de Ocupação (TO): {specs.taxa_ocupacao*100:.0f}%",
+            f"• Coef. Aproveitamento (CA): {specs.coeficiente_aproveitamento:.1f}",
+            f"• Gabarito: {specs.num_pavimentos} pavimento(s)",
+            f"• Permeabilidade mín.: {specs.taxa_permeabilidade*100:.0f}%",
+            f"• Recuo Frontal (RF): {specs.recuo_frontal:.1f}m",
+            f"• Recuo Lateral (RL): {specs.recuo_lateral:.1f}m",
+            f"• Recuo de Fundo (RFu): {specs.recuo_fundo:.1f}m",
         ]
         
         for i, text in enumerate(pd_text):

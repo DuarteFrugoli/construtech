@@ -1,1 +1,44 @@
-__pycache__
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Ambiente virtual
+venv/
+.venv/
+env/
+
+# Variáveis de ambiente
+.env
+*.env
+
+# Testes / cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Outputs gerados pelo projeto
+outputs/
+src/outputs/
+*.svg
+foo_house.svg
+
+# Ferramentas externas
+repomix-output.xml
+
+# IDEs
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.sw?
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+src/outputs/
+debug_response.txt
