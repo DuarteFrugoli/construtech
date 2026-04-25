@@ -1,4 +1,4 @@
-import { forwardRef, useMemo } from 'react';
+import { forwardRef, useMemo, useState } from 'react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +34,8 @@ interface FloorPlanCanvasProps {
   canvasWidth?: number;
   /** Canvas height in px (default 800) */
   canvasHeight?: number;
+  /** Called when user clicks a room (null = deselect) */
+  onRoomSelect?: (room: RoomData | null) => void;
 }
 
 // ── Room colour palette by zone keyword ─────────────────────────────────────
@@ -91,7 +93,9 @@ const FloorPlanCanvas = forwardRef<SVGSVGElement, FloorPlanCanvasProps>(({
   rooms,
   canvasWidth = 700,
   canvasHeight = 800,
+  onRoomSelect,
 }, ref) => {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const PADDING = 40; // px around the terrain
 
   const scale = useMemo(() => {
@@ -206,6 +210,20 @@ const FloorPlanCanvas = forwardRef<SVGSVGElement, FloorPlanCanvasProps>(({
         />
       ))}
 
+      {/* ── Selected room highlight ── */}
+      {selectedIndex !== null && (
+        <rect
+          x={px(rooms[selectedIndex].x) + 1}
+          y={py(rooms[selectedIndex].y) + 1}
+          width={ps(rooms[selectedIndex].width) - 2}
+          height={ps(rooms[selectedIndex].height) - 2}
+          fill="rgba(37, 99, 235, 0.10)"
+          stroke="#2563eb"
+          strokeWidth={2}
+          style={{ pointerEvents: 'none' }}
+        />
+      )}
+
       {/* ── Walls (room borders), with gaps where doors are ── */}
       {rooms.map((room, i) => {
         const rx = px(room.x);
@@ -319,6 +337,22 @@ const FloorPlanCanvas = forwardRef<SVGSVGElement, FloorPlanCanvasProps>(({
         );
       })}
 
+      {/* ── Click targets (transparent overlay, captures clicks on entire room) ── */}
+      {rooms.map((room, i) => (
+        <rect
+          key={`click-${i}`}
+          x={px(room.x)} y={py(room.y)}
+          width={ps(room.width)} height={ps(room.height)}
+          fill="transparent"
+          style={{ cursor: 'pointer' }}
+          onClick={() => {
+            const next = i === selectedIndex ? null : i;
+            setSelectedIndex(next);
+            onRoomSelect?.(next !== null ? rooms[next] : null);
+          }}
+        />
+      ))}
+
       {/* ── Cardinal labels (Frente / Fundo) ── */}
       {isPortrait ? (
         <>
@@ -359,4 +393,5 @@ function segmentsWithGaps(
 }
 
 export default FloorPlanCanvas;
+export { ptName };
 export type { RoomData, TerrainData as FloorPlanTerrain, DoorData };
