@@ -48,8 +48,8 @@ Classmethod removido de `src/core/models.py`.
 
 ### Frontend
 
-#### ~~F1 — XSS via `dangerouslySetInnerHTML`~~ ✅ CORRIGIDO
-`DOMPurify.sanitize()` aplicado em `HousePlanForm.tsx` e `HousePlanPreview.tsx`.
+#### ~~F1 — XSS via `dangerouslySetInnerHTML`~~ ✅ SUPERADO
+Originalmente corrigido com `DOMPurify`. Posteriormente eliminado por completo: o SVG agora é gerado pelo React em `FloorPlanCanvas.tsx`, sem nenhuma string HTML externa.
 
 #### ~~F2 — Estado stale no `handleMoreInfo`~~ ✅ CORRIGIDO
 `newTerrainData` usado diretamente em vez de depender do estado React atualizado assincronamente.
@@ -123,15 +123,51 @@ Google Geocoder removido. Nominatim é chamado no backend; erros são exibidos n
 
 ## 5. Sugestões de Features
 
-| # | Feature |
-|---|---------|
-| FA | **Múltiplos andares** — configurar planta térrea + sobrado |
-| FB | **Regenerar variação** — botão "Gerar nova variação" sem recarregar a página |
-| FC | **Escala real na planta** — adicionar régua/escala no SVG (ex: `── 10m ──`) |
-| FD | **Exportar como PDF** além do SVG |
-| FE | **Preview do terreno no mapa** — exibir polígono do lote baseado nas dimensões informadas |
-| FF | **Salvar/carregar projetos** — persistir planos no backend com ID único e URL compartilhável |
-| FG | **Relatório de materiais** — estimar m² de parede, área de piso por cômodo |
+### Edição da planta (interatividade)
+
+| # | Feature | Prioridade | Estado |
+|---|---------|-----------|--------|
+| FE1 | **Drag para mover cômodos** — arrastar qualquer cômodo para reposicioná-lo no SVG | Alta | Pendente |
+| FE2 | **Redimensionar cômodos** — handles nos cantos para alterar largura/altura | Alta | Pendente |
+| FE3 | **Mover porta** — arrastar a porta para outra parede do mesmo cômodo | Média | Pendente |
+| FE4 | **Escala real na planta** — régua/escala visual (ex: `── 5m ──`) | Média | Pendente |
+| FE5 | **Regenerar variação** — botão "Gerar nova variação" sem recarregar a página | Baixa | Pendente |
+
+### Persistência e usuário
+
+| # | Feature | Prioridade | Estado |
+|---|---------|-----------|--------|
+| FP1 | **Salvar/carregar projetos** — PostgreSQL (Supabase) com ID único e URL compartilhável | Alta | Pendente |
+| FP2 | **Autenticação** — login social (Google) via Supabase Auth | Média | Pendente |
+| FP3 | **Exportar como PDF** além do SVG | Baixa | Pendente |
+
+### Dados externos
+
+| # | Feature | Prioridade | Estado |
+|---|---------|-----------|--------|
+| FD1 | **Plano diretor automático** — detectar zoneamento e recuos a partir da coordenada do terreno | Alta | Pendente |
+| FD2 | **Estimativa de custo** — CUB/m² por estado (SINDUSCON) × área construída | Alta | Pendente |
+| FD3 | **Preview do terreno no mapa** — exibir polígono do lote nas dimensões informadas | Média | Pendente |
+| FD4 | **Relatório de materiais** — estimar m² de parede, área de piso por cômodo | Baixa | Pendente |
+
+### Produto
+
+| # | Feature | Prioridade | Estado |
+|---|---------|-----------|--------|
+| FP4 | **Deploy (Railway + Vercel)** — backend no Railway, frontend na Vercel, banco no Supabase | Alta | Pendente |
+| FP5 | **CORS dinâmico** — ler origins de variável de ambiente (pré-requisito para deploy) | Alta | Pendente |
+| FP6 | **Múltiplos andares** — configurar planta térrea + sobrado | Baixa | Pendente |
+
+---
+
+## 6. Mudanças arquiteturais (25/04/2026)
+
+| # | Mudança | Motivo |
+|---|---------|--------|
+| A1 | **Gemini removido** — `gemini_client.py`, `prompt_generator.py`, `ai_layout_converter.py` deletados | Dependência desnecessária; gerador baseado em regras é suficiente para o MVP |
+| A2 | **SVG migrado para o frontend** — `svg_generator.py` órfão; backend retorna JSON `{terrain, layout[]}` | SVG no backend impedia interatividade; React SVG nativo permite clique, drag, animações |
+| A3 | **`DOMPurify` removido** — SVG construído pelo React, sem string externa | Elimina risco de XSS por design, não por sanitização |
+| A4 | **Seleção de cômodos** — `FloorPlanCanvas` com `onRoomSelect`, highlight e painel de info | Base para features de edição (drag, resize) |
 
 ---
 
@@ -144,5 +180,9 @@ Google Geocoder removido. Nominatim é chamado no backend; erros são exibidos n
 | Qualidade de código (Q1–Q11) | 11 | 11 | 0 |
 | Segurança (S1–S7) | 7 | 7 | 0 |
 | Validações ausentes (V1–V8) | 8 | 8 | 0 |
-| Migração `google-generativeai` → `google-genai` | 1 | 0 | 1 |
-| Chaves de API expiradas/inativas (ação manual) | — | — | verificar |
+| Migração `google-generativeai` → `google-genai` | 1 | 1 | 0 (biblioteca removida junto com o Gemini) |
+| Mudanças arquiteturais (A1–A4) | 4 | 4 | 0 |
+| Features de edição da planta (FE1–FE5) | 5 | 0 | 5 |
+| Features de persistência (FP1–FP3) | 3 | 0 | 3 |
+| Features de dados externos (FD1–FD4) | 4 | 0 | 4 |
+| Features de produto/deploy (FP4–FP6) | 3 | 0 | 3 |

@@ -1,10 +1,10 @@
 # Análise de Estrutura do Projeto — Construtech
 
-Data: 22/04/2026 | Atualizado: 23/04/2026
+Data: 22/04/2026 | Atualizado: 25/04/2026
 
 ---
 
-## Estrutura atual (após reorganização)
+## Estrutura atual
 
 ```
 construtech/
@@ -12,33 +12,31 @@ construtech/
 │   ├── api/
 │   │   ├── __init__.py
 │   │   ├── main.py          ← ponto de entrada Uvicorn
-│   │   └── routes.py        ← endpoints FastAPI
+│   │   └── routes.py        ← endpoints FastAPI; retorna JSON (não mais SVG)
 │   ├── ai/
-│   │   ├── __init__.py
-│   │   ├── gemini_client.py ← singleton do modelo Gemini
-│   │   └── prompt_generator.py
+│   │   └── __init__.py      ← pasta vazia (Gemini removido em 25/04/2026)
 │   ├── core/
 │   │   ├── __init__.py
 │   │   └── models.py        ← dataclasses Room, Door, HouseSpecs
 │   ├── generators/
 │   │   ├── __init__.py
-│   │   ├── ai_layout_converter.py   ← converte resposta da IA em cômodos
-│   │   ├── house_plan_generator.py  ← orquestra IA + regras
-│   │   ├── rule_based_generator.py  ← layout baseado em regras
-│   │   └── svg_generator.py         ← gera SVG a partir dos cômodos
+│   │   ├── house_plan_generator.py  ← orquestra o gerador de layout
+│   │   ├── rule_based_generator.py  ← layout baseado em regras (único gerador ativo)
+│   │   └── svg_generator.py         ← ÓRFÃO: não é mais importado; pode ser deletado
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── image_generator.py  ← DALL-E 3 (OpenAI)
 │   │   └── terrain_analyzer.py ← Nominatim + Open-Elevation (gratuitos)
 │   └── utils/
 │       ├── __init__.py
-│       ├── constants.py        ← traduções e constantes SVG
+│       ├── constants.py        ← traduções e constantes
 │       └── output_manager.py   ← gerenciamento de arquivos de saída
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── HousePlanForm.tsx     ← formulário principal
-│   │   │   ├── HousePlanPreview.tsx  ← preview standalone (não usado)
+│   │   │   ├── FloorPlanCanvas.tsx   ← renderiza planta como SVG React nativo
+│   │   │   │                            (seleção de cômodos, highlight, onRoomSelect)
+│   │   │   ├── HousePlanForm.tsx     ← formulário principal + modais + painel de info
 │   │   │   ├── LocationPicker.tsx    ← mapa Leaflet + OSM
 │   │   │   ├── LoadingOverlay.tsx
 │   │   │   └── Modal.tsx
@@ -48,12 +46,14 @@ construtech/
 │   └── vite.config.ts        ← proxy /api → localhost:8000
 ├── tests/
 │   ├── test_routes.py        ← testes de integração dos endpoints
-│   └── test_external_apis.py ← conectividade: Nominatim, Open-Elevation, OpenAI, Gemini
+│   └── test_external_apis.py ← conectividade: Nominatim, Open-Elevation, OpenAI
 ├── outputs/                  ← artefatos gerados (fora do pacote Python)
 ├── docs/
 │   ├── audit.md
+│   ├── run-servers.md
+│   ├── stack-analysis.md
 │   └── structure.md
-├── .env                      ← GEMINI_API_KEY, OPENAI_API_KEY
+├── .env                      ← OPENAI_API_KEY (GEMINI_API_KEY removida)
 ├── .gitignore
 └── requirements.txt
 ```
@@ -64,11 +64,10 @@ construtech/
 
 | Serviço | Função | Custo | Chave necessária |
 |---------|--------|-------|-----------------|
-| Nominatim (OpenStreetMap) | Geocodificação | Gratuito | Não |
-| Open-Elevation | Dados de altitude | Gratuito | Não |
+| Nominatim (OpenStreetMap) | Geocodificação | Gratuito (limite: 1 req/s, sem uso comercial) | Não |
+| Open-Elevation | Dados de altitude (resolução baixa no Brasil) | Gratuito | Não |
 | Leaflet + OpenStreetMap | Mapa interativo no frontend | Gratuito | Não |
-| Google Gemini 1.5 Flash | Geração de layouts com IA | Pago (cota gratuita disponível) | `GEMINI_API_KEY` |
-| OpenAI DALL-E 3 | Geração de imagem da casa | Pago | `OPENAI_API_KEY` |
+| OpenAI DALL-E 3 | Geração de imagem da casa (fachada artística) | Pago | `OPENAI_API_KEY` |
 
 ---
 
@@ -76,8 +75,9 @@ construtech/
 
 | Item | Detalhe |
 |---|---|
-| `HousePlanPreview.tsx` | Componente nunca importado em nenhum lugar. Remover ou integrar ao `App.tsx` (Q4) |
-| Migração `google-generativeai` → `google-genai` | Biblioteca depreciada; migrar quando `google-genai` estabilizar |
+| `src/generators/svg_generator.py` | Arquivo órfão — não é importado em nenhum lugar desde a migração SVG→frontend. Remover após confirmar que não há regressão. |
+| `src/ai/` | Pasta com só `__init__.py`. Remover se não houver plano de uso futuro próximo. |
+| CORS hardcoded em `routes.py` | `allow_origins=["http://localhost:5173"]` — bloqueia qualquer deploy. Precisa ser variável de ambiente. |
 
 ---
 
@@ -88,4 +88,8 @@ construtech/
 | Módulos soltos em `src/` | Movidos com `git mv` para subpastas corretas |
 | `src/main.py` legado | Removido (`git rm`) |
 | `outputs/` dentro do pacote | Movido para raiz do projeto; `.gitignore` atualizado |
-| Renomeação de 6 arquivos | `rule_based_layout.py` → `rule_based_generator.py`, `ai_response_converter.py` → `ai_layout_converter.py`, `svg_constants.py` → `constants.py`, `model_config.py` → `gemini_client.py`, `server.py` → `main.py`, `file_manager.py` → `output_manager.py` |
+| Renomeação de 6 arquivos | `rule_based_layout.py` → `rule_based_generator.py`, `ai_response_converter.py` → `ai_layout_converter.py`, `svg_constants.py` → `constants.py`, `server.py` → `main.py`, `file_manager.py` → `output_manager.py` |
+| Gemini removido (25/04/2026) | `gemini_client.py`, `prompt_generator.py`, `ai_layout_converter.py` deletados; `google-generativeai` removido de `requirements.txt` |
+| SVG gerado no backend (25/04/2026) | Migrado para `FloorPlanCanvas.tsx` no frontend; backend agora retorna JSON `{terrain, layout[]}` |
+| `dangerouslySetInnerHTML` + DOMPurify (25/04/2026) | Removidos — SVG é construído pelo React, sem string HTML externa |
+| `HousePlanPreview.tsx` (componente não usado) | Deletado |
