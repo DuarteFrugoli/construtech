@@ -30,16 +30,15 @@ Use esse ambiente como padrão para evitar erro de dependência faltando, como `
 
 ## Subir o backend
 
-Abra um terminal PowerShell na raiz do projeto:
+Abra um terminal PowerShell na raiz do projeto e rode:
 
 ```powershell
-cd "C:\Users\Pedro Frugoli\Desktop\pessoal\vscode\Construtech"
 & ".\venv\Scripts\python.exe" src/api/main.py
 ```
 
 Quando der certo, a saída deve ficar parecida com esta:
 
-```text
+```text#
 INFO:     Started server process [...]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
@@ -69,10 +68,10 @@ Se o terminal estiver preso ou perdido no VS Code:
 
 ## Subir o frontend
 
-Abra outro terminal PowerShell e rode:
+Abra outro terminal PowerShell na raiz do projeto e rode:
 
 ```powershell
-cd "C:\Users\Pedro Frugoli\Desktop\pessoal\vscode\Construtech\frontend"
+cd frontend
 npm run dev
 ```
 
@@ -141,17 +140,16 @@ Faça um destes:
 
 ## Comandos mínimos
 
-Backend:
+Backend (da raiz do projeto):
 
 ```powershell
-cd "C:\Users\Pedro Frugoli\Desktop\pessoal\vscode\Construtech"
 & ".\venv\Scripts\python.exe" src/api/main.py
 ```
 
-Frontend:
+Frontend (da raiz do projeto):
 
 ```powershell
-cd "C:\Users\Pedro Frugoli\Desktop\pessoal\vscode\Construtech\frontend"
+cd frontend
 npm run dev
 ```
 

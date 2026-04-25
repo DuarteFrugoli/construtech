@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import DOMPurify from 'dompurify';
+import React, { useRef, useState } from 'react';
 import Modal from './Modal';
 import LocationPicker from './LocationPicker';
 import LoadingOverlay from './LoadingOverlay';
+import FloorPlanCanvas, { ptName, type RoomData, type FloorPlanTerrain } from './FloorPlanCanvas';
 
 interface HousePlanFormData {
   terrain_width: number;
@@ -85,8 +85,9 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
-  const [svgContent, setSvgContent] = useState<string>('');
-  const [roomLayout, setRoomLayout] = useState<Array<{name: string; x: number; y: number; width: number; height: number}>>([]);
+  const [planData, setPlanData] = useState<{ terrain: FloorPlanTerrain; layout: RoomData[] } | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<RoomData | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [imageUrl, setImageUrl] = useState<string>('');
   const [isLoadingImage, setIsLoadingImage] = useState(false);
   const [terrainData, setTerrainData] = useState<TerrainData | null>(null);
@@ -187,7 +188,7 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
           terrain_width: formData.terrain_width,
           terrain_height: formData.terrain_height,
           recuo_frontal: formData.recuo_frontal,
-          room_layout: roomLayout,
+          room_layout: planData?.layout ?? [],
         })
       });
       if (!imageResponse.ok) {
@@ -245,10 +246,10 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
 
       if (!response.ok) throw new Error('Failed to generate house plan');
       const data = await response.json();
-      setSvgContent(data.svg);
-      setRoomLayout(data.layout ?? []);
+      setPlanData({ terrain: data.terrain, layout: data.layout ?? [] });
+      setSelectedRoom(null);
       setShowModal(true);
-      if (onSubmit) onSubmit(data.svg);
+      if (onSubmit) onSubmit('');
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -521,12 +522,14 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
         </button>
       </form>
 
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Planta da Casa">
+      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setSelectedRoom(null); }} title="Planta da Casa">
         <div className="flex flex-col w-full gap-3">
           <div className="flex gap-2 justify-end">
             <button
               onClick={() => {
-                const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+                const svgEl = svgRef.current;
+                if (!svgEl) return;
+                const blob = new Blob([svgEl.outerHTML], { type: 'image/svg+xml' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -552,7 +555,54 @@ const HousePlanForm: React.FC<HousePlanFormProps> = ({ onSubmit }) => {
               {isLoadingImage ? 'Gerando...' : 'Visualização 3D'}
             </button>
           </div>
-          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svgContent) }} />
+          {planData && (
+            <>
+              <FloorPlanCanvas
+                ref={svgRef}
+                terrain={planData.terrain}
+                rooms={planData.layout}
+                onRoomSelect={setSelectedRoom}
+              />
+              {selectedRoom ? (
+                <div className="mt-2 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-slate-800 text-base">
+                      {ptName(selectedRoom.name)}
+                    </h3>
+                    <button
+                      onClick={() => setSelectedRoom(null)}
+                      className="text-slate-400 hover:text-slate-600 text-sm leading-none"
+                      aria-label="Fechar"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="bg-white rounded-md p-2 border border-slate-100">
+                      <div className="text-xs text-slate-500 mb-1">Dimensões</div>
+                      <div className="font-medium text-slate-700 text-sm">
+                        {selectedRoom.width.toFixed(1)}m × {selectedRoom.height.toFixed(1)}m
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-md p-2 border border-slate-100">
+                      <div className="text-xs text-slate-500 mb-1">Área</div>
+                      <div className="font-medium text-slate-700 text-sm">
+                        {(selectedRoom.width * selectedRoom.height).toFixed(1)} m²
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-md p-2 border border-slate-100">
+                      <div className="text-xs text-slate-500 mb-1">Portas</div>
+                      <div className="font-medium text-slate-700 text-sm">
+                        {selectedRoom.doors.length}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-center text-xs text-slate-400 mt-1">Clique em um cômodo para ver detalhes</p>
+              )}
+            </>
+          )}
         </div>
       </Modal>
 
