@@ -238,6 +238,28 @@ class RuleBasedLayoutGenerator:
                 else:
                     room.width *= depth_scale
 
+        # Pre-scale private rooms (bedrooms + private) so their total packing
+        # dimension fits within the terrain's short axis.  Without this,
+        # pack_cols / pack_rows wraps overflow rooms into a narrow second
+        # column/row — producing bedrooms that are far too small (e.g. 2×2 m).
+        _priv_pack = [r for r in rooms if self._get_zone(r.name) in {"bedroom", "private"}]
+        if not is_portrait_gs:
+            # Landscape → rooms stack top-to-bottom; cap total height to usable H.
+            _usable_h = specs.terrain_height - 2 * specs.recuo_lateral
+            _total_h = sum(r.height for r in _priv_pack)
+            if _total_h > 0 and _total_h > _usable_h * 0.95:
+                _hs = _usable_h * 0.95 / _total_h
+                for r in _priv_pack:
+                    r.height *= _hs
+        else:
+            # Portrait → rooms stack left-to-right; cap total width to usable W.
+            _usable_w = specs.terrain_width - 2 * specs.recuo_lateral
+            _total_w = sum(r.width for r in _priv_pack)
+            if _total_w > 0 and _total_w > _usable_w * 0.95:
+                _ws = _usable_w * 0.95 / _total_w
+                for r in _priv_pack:
+                    r.width *= _ws
+
         # Enforce minimum dimensions so rooms remain architecturally valid
         # even on small terrains where the scale factor compressed everything.
         _MIN_DIM = {

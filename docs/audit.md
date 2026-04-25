@@ -6,17 +6,6 @@ Data: 22/04/2026 | Atualizado: 25/04/2026
 
 ---
 
-## Mudanças arquiteturais recentes
-
-| # | Mudança | Motivo |
-|---|---------|--------|
-| A1 | **Gemini removido** — `gemini_client.py`, `prompt_generator.py`, `ai_layout_converter.py` deletados | Dependência desnecessária; gerador baseado em regras é suficiente para o MVP |
-| A2 | **SVG migrado para o frontend** — backend retorna JSON `{terrain, layout[]}`; `svg_generator.py` órfão | SVG no backend impedia interatividade; React SVG nativo permite clique, drag, animações |
-| A3 | **`DOMPurify` removido** — SVG construído pelo React, sem string externa | Elimina risco de XSS por design, não por sanitização |
-| A4 | **Seleção de cômodos** — `FloorPlanCanvas` com `onRoomSelect`, highlight e painel de info | Base para features de edição (drag, resize) |
-
----
-
 ## Features pendentes
 
 ### Edição da planta
